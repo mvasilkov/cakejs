@@ -220,6 +220,9 @@ Array.prototype.map = function(f) {
   for (var i=0; i<this.length; i++) na[i] = f(this[i], i, this)
   return na
 }
+Array.prototype.forEach = function(f) {
+  for (var i=0; i<this.length; i++) f(this[i], i, this)
+}
 if (!Array.prototype.reduce) {
   Array.prototype.reduce = function(f, s) {
     var i = 0
@@ -231,6 +234,13 @@ if (!Array.prototype.reduce) {
       s = f(s, this[i], i, this)
     }
     return s
+  }
+}
+if (!Array.prototype.find) {
+  Array.prototype.find = function(f) {
+    for(var i=0; i<this.length; i++) {
+      if (f(this[i], i, this)) return this[i]
+    }
   }
 }
 
@@ -535,25 +545,16 @@ if (!window.Mouse) Mouse = {}
   */
 Mouse.getRelativeCoords = function(element, event) {
   var xy = {x:0, y:0}
-  if (event.offsetX != null) {
-    xy.x = event.offsetX
-    xy.y = event.offsetY
-  } else if (event.layerX != null) {
-    var osl = 0
-    var ost = 0
-    var el = event.target
-    while (el && el != element) {
-      var cs = document.defaultView.getComputedStyle(el, '')
-      var pos = cs.getPropertyValue('position')
-      if (pos == 'absolute' || pos == 'relative') {
-        osl += el.offsetLeft
-        ost += el.offsetTop
-      }
-      el = el.parentNode
-    }
-    xy.x = event.layerX + osl
-    xy.y = event.layerY + ost
+  var osl = 0
+  var ost = 0
+  var el = element
+  while (el) {
+    osl += el.offsetLeft
+    ost += el.offsetTop
+    el = el.offsetParent
   }
+  xy.x = event.pageX - osl
+  xy.y = event.pageY - ost
   return xy
 }
 
@@ -3266,7 +3267,8 @@ Canvas = Klass(CanvasNode, {
     }, true)
 
     this.canvas.parentNode.addEventListener('mouseout', function(e) {
-      th.absoluteMouseX = th.absoluteMouseY = th.mouseX = th.mouseY = null
+      if (!CanvasNode.contains.call(this, e.relatedTarget))
+        th.absoluteMouseX = th.absoluteMouseY = th.mouseX = th.mouseY = null
     }, true)
 
     var dispatch = this.dispatchEvent.bind(this)

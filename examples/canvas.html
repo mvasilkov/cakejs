@@ -191,7 +191,7 @@
 
 
   ImageDataFill = Klass(Effect, {
-    description : 'Plot <strike>640x480</strike> 640x120 pixels in an array and draw them on the canvas with putImageData. 640x480 is way too slow, 640x120 should run at a whopping 4 fps.',
+    description : 'Plot 640x480 pixels in an array and draw them on the canvas with putImageData.',
     controls : ['generateData'],
     generateData : true,
 
@@ -201,34 +201,37 @@
       this.canvas.fill = true
       var c = canvas.getContext()
       var support = c.putImageData && c.getImageData
-      var lies = false
       if (support) {
         if (!c.createImageData) {
           c.createImageData = function(w,h){
             var d = c.getImageData(0,0,w,h)
-            if (!d.setData) {
-              d.setData = function(data) {
-                for (var i=0; i<data.length; i++) {
-                  this.data[i] = data[i]
-                }
-              }
+            if (d.data.length != w*h*4) { // We're screwed, thanks a lot.
+              var ratio = d.data.length / (w*h*4)
+              w *= ratio
+              h *= ratio
+              d = c.getImageData(0,0,w,h)
             }
             return d
           }
         }
         // Let's try it out. Should work.
         var d = c.createImageData(1,1)
+        if (!d.setData) {
+          d.setData = function(data) {
+            for (var i=0; i<data.length; i++) {
+              this.data[i] = data[i]
+            }
+          }
+        }
         d.setData([255, 0, 255, 255])
         c.putImageData(d, 0, 0)
         var idata = c.getImageData(0,0,1,1)
         if (![255, 0, 255, 255].equals(idata.data)) {
           support = false // Lies. Dirty lies.
-          lies = true
         }
       }
       if (!support) {
         var msg = "Your browser doesn't support putImageData."
-        if (lies) msg += "<br>And it has the gall to lie about it."
         var notSupported = new ElementNode(E('div',
           msg,
           {style: {color:'white', textAlign:'center'}}
@@ -236,20 +239,18 @@
         this.scene.append(notSupported)
         return
       }
-      this.scene.imageData = c.createImageData(640, 120)
-      var pixels = this.scene.imageData.data
-      for (var i=0; i<640*120*4; i++) {
-        pixels[i] = 255
-      }
+      this.scene.imageData = c.createImageData(640, 480)
       this.scene.draw = function(ctx) {
+        var pixels = this.imageData.data
         var r = Math.floor(Math.random() * 256)
         var g = Math.floor(Math.random() * 256)
         var b = Math.floor(Math.random() * 256)
         if (this.effect.generateData) {
-          for (var i=0; i<640*120*4; i+=4) {
+          for (var i=0; i<640*480*4; i++) {
             pixels[i] = r
-            pixels[i+1] = g
-            pixels[i+2] = b
+            pixels[++i] = g
+            pixels[++i] = b
+            pixels[++i] = 255
           }
         }
         ctx.putImageData(this.imageData, 0, 0)
@@ -2402,11 +2403,17 @@
   TransformWidgetProto = Klass(Effect, {
     description : 'Prototyping a transform widget. Needs original scale snap and shift-constraining.',
     
+    unfocusedColor : 'rgba(250,150,30,0.5)',
+    
     initialize : function() {
       Effect.initialize.apply(this, arguments)
-      var c = new Circle(100, {
-        fill: 'rgba(0,230,255,0.5)',
-        strokeWidth:10,stroke:'white'})
+      var curve = [[320,50], [440,400], [150, 300], [490,300], [200,400]]
+      this.spline = new CatmullRomSpline(
+        curve.map(function(xy){ return [xy[0]-320, xy[1]-240] }),
+        {stroke:'white',
+         fill:this.unfocusedColor,
+         zIndex : -1, loop : true})
+      var c = this.spline
       this.circle = c
       var tf = this.makeTransformWidget(c)
       tf.x = 320
@@ -2962,7 +2969,7 @@
       <ul>
         <li><h4>Firefox 3 beta</h4> weird choppiness on x86_64 Linux [<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=408372">bug</a>], no drop shadows [<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=310682">bug</a>], globalAlpha doesn't affect patterns [<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=401790">bug</a>], mozDrawText API lacks a way to get the font height and baseline [<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=406117">bug</a>]</li>
         <li><h4>Firefox 2.0</h4> no text, non-pattern images are slow, no drop shadows, globalAlpha doesn't affect patterns</li>
-        <li><h4>Safari 3</h4> no toDataURL [<a href="http://bugs.webkit.org/show_bug.cgi?id=16673">bug</a>], no text, no-repeat image patterns break when transforming [<a href="http://bugs.webkit.org/show_bug.cgi?id=16516">bug</a>], linear gradients get ugly when rotating [<a href="http://bugs.webkit.org/show_bug.cgi?id=16627">bug</a>, <a href="http://bugs.webkit.org/show_bug.cgi?id=16045">maybe related</a>], <b>runs like a bat out of hell</b></li>
+        <li><h4>Safari 3</h4> no toDataURL [<a href="http://bugs.webkit.org/show_bug.cgi?id=16673">bug</a>, FIXED], no text, no-repeat image patterns break when transforming [<a href="http://bugs.webkit.org/show_bug.cgi?id=16516">bug</a>, FIXED], linear gradients get ugly when rotating [<a href="http://bugs.webkit.org/show_bug.cgi?id=16627">bug</a>, <a href="http://bugs.webkit.org/show_bug.cgi?id=16045">maybe related</a>], <b>runs like a bat out of hell</b></li>
         <li><h4>Opera 9.5 beta</h4> no text, no drop shadows, some broken (and slow) composite operations, scaled circle strokes are buggy (small gap between first and last point)</li>
         <li><h4>Opera 9.2</h4> some basic features work, scaled circle strokes are buggy, slow</li>
         <li><h4>IE</h4> a couple things work with <a href="http://excanvas.sf.net">ExplorerCanvas</a> but it gets VERY SLOW after a few hundred frames</li>
