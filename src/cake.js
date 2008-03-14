@@ -4300,7 +4300,7 @@ Line = Klass(Drawable, {
   Uses context.arc(...).
 
   Attributes:
-    cx, cy, radius, angle1, angle2, clockwise, closePath, includeCenter
+    cx, cy, radius, startAngle, endAngle, clockwise, closePath, includeCenter
 
   @param radius Radius of the circle.
   @param config Optional config hash.
@@ -4309,8 +4309,8 @@ Circle = Klass(Drawable, {
   cx : 0,
   cy : 0,
   radius : 10,
-  angle1 : 0,
-  angle2 : Math.PI * 2,
+  startAngle : 0,
+  endAngle : Math.PI * 2,
   clockwise : false,
   closePath : true,
   includeCenter : false,
@@ -4329,11 +4329,11 @@ Circle = Klass(Drawable, {
     if (this.radius == 0) return
     if (this.includeCenter)
       ctx.moveTo(this.cx, this.cy)
-    ctx.arc(this.cx, this.cy, this.radius, this.angle1, this.angle2, this.clockwise)
+    ctx.arc(this.cx, this.cy, this.radius, this.startAngle, this.endAngle, this.clockwise)
     if (this.closePath) {
       // firefox 2 is buggy without the endpoint
-      var x2 = Math.cos(this.angle2)
-      var y2 = Math.sin(this.angle2)
+      var x2 = Math.cos(this.endAngle)
+      var y2 = Math.sin(this.endAngle)
       ctx.moveTo(this.cx + x2*this.radius, this.cy + y2 * this.radius)
       ctx.closePath()
     }

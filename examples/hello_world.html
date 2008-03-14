@@ -7,21 +7,27 @@ window.onload = function() {
 
   var canvas = new Canvas(document.body, 640, 480, {fixedTimestep:true})
 
-  var hello = new ElementNode(E('h1', 'Hello, world!'))
-  hello.x = canvas.width / 2
-  hello.y = canvas.height / 2
-  hello.align = 'center'
-  hello.valign = 'center'
-  canvas.append(hello)
-
   var circle = new Circle(100, {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    scale: 1,
     stroke: 'cyan',
     strokeWidth: 20,
+    endAngle: Math.PI*1.8
   })
   circle.every(1000, function(){
-    this.animateTo('radius', this.radius == 100 ? 50 : 100, 900, 'sine')
+    this.animateTo('scale', this.scale == 2 ? 0.5 : 2, 900, 'sine')
   })
-  hello.append(circle)
+  circle.addFrameListener(function(t, dt) {
+    this.rotation = Math.sin(t / 1000) * Math.PI
+  })
+  canvas.append(circle)
+  
+  var hello = new ElementNode(E('h1', 'Hello, world!'))
+  hello.align = 'center'
+  hello.valign = 'center'
+  circle.append(hello)
+
 
 }
 
