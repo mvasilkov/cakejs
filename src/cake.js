@@ -3177,6 +3177,19 @@ Canvas = Klass(CanvasNode, {
   mouseY : null,
 
   initialize : function(canvas, config) {
+    if (arguments.length > 2) {
+      var container = arguments[0]
+      var w = arguments[1]
+      var h = arguments[2]
+      var config = arguments[3]
+      var canvas = E.canvas(w,h)
+      var canvasContainer = E('div', canvas, {style:
+        {overflow:'hidden', width:w+'px', height:h+'px', position:'relative'}
+      })
+      this.canvasContainer = canvasContainer
+      if (container)
+        container.appendChild(canvasContainer)
+    }
     CanvasNode.initialize.call(this, config)
     this.mouseEventStack = []
     this.canvas = canvas
