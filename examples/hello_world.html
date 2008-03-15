@@ -5,7 +5,7 @@
 
 window.onload = function() {
 
-  var canvas = new Canvas(document.body, 640, 480, {fixedTimestep:true})
+  var canvas = new Canvas(document.body, 640, 480)
 
   var circle = new Circle(100, {
     x: canvas.width / 2,
@@ -16,18 +16,20 @@ window.onload = function() {
     endAngle: Math.PI*1.8
   })
   circle.every(1000, function(){
-    this.animateTo('scale', this.scale == 2 ? 0.5 : 2, 900, 'sine')
+    var targetScale = (this.scale == 2) ? 0.5 : 2
+    this.animateTo('scale', targetScale, 900, 'sine')
   })
   circle.addFrameListener(function(t, dt) {
     this.rotation = Math.sin(t / 1000) * Math.PI
   })
-  canvas.append(circle)
   
   var hello = new ElementNode(E('h1', 'Hello, world!'))
   hello.align = 'center'
   hello.valign = 'center'
+  
   circle.append(hello)
 
+  canvas.append(circle)
 
 }
 
