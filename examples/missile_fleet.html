@@ -150,6 +150,139 @@
       })
     }
 
+
+    FleetAI = function(t,dt) {
+      if (FleetAI.targetByThreat) {
+        if (FleetAI.previousTime != t) {
+          FleetAI.previousTime = t
+          var threats = this.enemies.sort(function(a,b) {
+            return FleetAI.threatRating(b) - FleetAI.threatRating(a)
+          })
+          if (threats.length > 0) {
+            var damageEstimates = {}
+            var targeting = {}
+            FleetAI.updateEstimates(t)
+            threats.forEach(function(tg) {
+              damageEstimates[tg.id] = (FleetAI.damageEstimates[tg.id] || 0)
+              targeting[tg.id] = []
+            })
+            for (var i=0; i<this.friends.length; i++) {
+              var th = this.friends[i]
+              // find highest threat that's not yet a probable kill
+              var tr = threats.find(function(tg){
+                return (FleetAI.useDamageEstimates ? (damageEstimates[tg.id] < tg.health)
+                                                  : tg.health > 0) &&
+                      (th.weapon.range >= th.distanceTo(tg))
+              })
+              if (!tr) {
+                tr = threats[0]
+              } else {
+                targeting[tr.id].push(th)
+                damageEstimates[tr.id] = (FleetAI.damageEstimates[tr.id] || 0) +
+                                          FleetAI.estimateDamage(tr, targeting[tr.id])
+              }
+              th.target = tr
+            }
+            for (var i in targeting) {
+              if (targeting[i].length > 0)
+                FleetAI.estimateTimeouts.push([t+2000, i, damageEstimates[i]])
+            }
+            FleetAI.damageEstimates = damageEstimates
+          }
+        }
+      } else if (!this.target || this.target.health <= 0 || (Math.random() < 0.3 && this.distanceTo(this.target) > this.weapon.range)) {
+        var th = this
+        this.target = this.enemies.sort(function(a,b){
+          return Math.abs(th.weapon.optimalRange - th.distanceTo(a)) -
+                  Math.abs(th.weapon.optimalRange - th.distanceTo(b))
+        })[0]
+      }
+      if (!this.waypoint && this.target && this.target.health > 0) {
+        var angle = this.angleTo(this.target)
+        var distance = this.distanceTo(this.target)
+        var inRange = (distance < this.weapon.range)
+        var optimumRange = (distance < this.weapon.optimalRange)
+        var targetInRange = (this.target.weapon && distance < this.target.weapon.range)
+        this.turnToward( angle )
+        if (inRange) this.turnToward( angle + (Math.PI / 6) )
+        if (optimumRange) this.turnToward( angle + Math.PI )
+        this.moveAt(1)
+        // run away from CPU targets that we can snipe
+        if (inRange && !targetInRange) {
+          this.turnToward( angle + Math.PI * (FleetAI.runAway ? 1 : 0.5) )
+          this.moveAt(1)
+        }
+      }
+
+      // Taskforce of the ship is the set of ships with goals closest to
+      // the ships goals. If there is no taskforce, start one.
+      
+      // A taskforce maneuvers to maximize defense. Protect targeted ships by
+      // forming a defensive wall around them. Beam ships don't
+      // necessarily go hunting if they're more valuable as point defense.
+
+      // A taskforce tries to sink the most dangerous and vulnerable
+      // enemy ship first, estimating the firepower required for a
+      // probable kill, switching to the next target after probable kill
+      // achieved. The goal is to cause maximum damage with minimum losses.
+
+      // A taskforce prioritizes its weapon use by target.
+    }
+    FleetAI.runAway = false
+    FleetAI.targetByThreat = true
+    FleetAI.useDamageEstimates = true
+    FleetAI.damageEstimates = {}
+    FleetAI.estimateTimeouts = []
+    FleetAI.threatRating = function(a) {
+      var rating = (a.weapon.damage*a.weapon.salvos*a.weapon.range) / a.weapon.reloadTime
+      if (a.target && a.target.health > 0) {
+        var td = a.distanceTo(a.target)
+        var rd = a.weapon.range - td
+        if (rd >= 0) { // in range
+          rating *= 1000
+        } else {
+          rating *= 1000 / Math.max(1, 10*(-rd / a.weapon.range))
+        }
+      }
+      return rating
+    }
+    FleetAI.updateEstimates = function(t) {
+      while(FleetAI.estimateTimeouts.length > 0 && FleetAI.estimateTimeouts[0][0] <= t) {
+        var update = FleetAI.estimateTimeouts.shift()
+        if (FleetAI.damageEstimates[update[1]]) {
+          FleetAI.damageEstimates[update[1]] -= FleetAI.damageEstimates[update[2]]
+        }
+      }
+    }
+    FleetAI.estimateDamage = function(target, attackers) {
+      var fs = target.pointDefense.salvos * 1.5 // fudge factor
+      var dmg = target.pointDefense.damage
+      var hit = false
+      return attackers.reduce(function(s, a){
+        var pfs = fs
+        fs -= a.weapon.freeSalvos * Math.max(1, (a.weapon.projectileHealth / dmg))
+        if (fs <= 0) {
+          if (hit) {
+            var d = a.weapon.freeSalvos
+          } else {
+            hit = true
+            var d = a.weapon.freeSalvos - pfs * Math.floor(dmg / a.weapon.projectileHealth)
+          }
+          return s + (a.weapon.damage * (d))
+        } else {
+          if (a.weapon.movementSpeed > target.pointDefense.movementSpeed) {
+            var likelyToHit = target.pointDefense.hitRadius >= 5
+            var likelyToKill = dmg >= a.weapon.projectileHealth
+            if (!(likelyToHit && likelyToKill)) {
+              s += a.weapon.damage
+            }
+          }
+          return s
+        }
+      }, 0)
+    }
+
+
     Formation = Klass({
       initialize : function() {
         this.ships = []
@@ -607,13 +740,12 @@
         }
       },
 
-      firedShots : 0,
+      shotsFired : 0,
       fireAt : function(target) {
         for (var i=0; i < this.weapon.salvos; i++) {
           if (this.weapon.readyToFire) {
-            this.weapon.rotation = (Math.PI) * ((this.firedShots % 2) - 0.5)
             this.weapon.fireAt(target)
-            this.firedShots++
+            this.shotsFired++
           }
         }
       }
@@ -695,6 +827,7 @@
       salvos : 5,
       techLevel : 0,
       rotation : 0,
+      shotsFired : 0,
       height: 2,
       color: 'white',
       x : 0, y : 0, rotation : 0,
@@ -714,6 +847,7 @@
         this.rx = this.x + this.ship.x
         this.ry = this.y + this.ship.y
         this.rrot = this.rotation + this.ship.rotation
+        this.shotsFired++
         var proj = this.createProjectile(target)
         this.ship.parent.append(proj)
         this.after(this.reloadTime, this.reload)
@@ -746,13 +880,17 @@
       color: '#5533ff',
       height: 2,
       damageType : 'kinetic',
-      
-      initAI : function() {
-        this.rotation = this.predictAngleToTarget(this.movementSpeed)
+
+      initialize : function() {
+        Weapon.initialize.apply(this,arguments)
         this.reloadTime *= Math.pow(0.8, this.techLevel)
         this.movementSpeed *= Math.pow(1.1, this.techLevel)
         this.hitRadius *= Math.pow(1.1, this.techLevel)
         this.range *= Math.pow(1.1, this.techLevel)
+      },
+      
+      initAI : function() {
+        this.rotation = this.predictAngleToTarget(this.movementSpeed)
         this.after(1000, this.removeSelf)
         var smoke = new CanvasNode({
           stroke: '#ba88ba',
@@ -800,23 +938,29 @@
       damage : 20,
       range : 500,
       optimalRange : 250,
-      reloadTime : 1500,
-      salvos: 4,
+      reloadTime : 1000,
+      salvos: 3,
       color: '#22ccff',
       height: 1.5,
       damageType : 'explosive',
 
       initialize : function() {
         Weapon.initialize.apply(this,arguments)
-      },
-
-      initAI : function() {
-        this.model.width *= 2
-        this.rotation += 2 * (Math.random() - 0.5)
+        if (this.techLevel >= 5) {
+          this.salvos += 2
+          this.freeSalvos = this.salvos
+        }
         this.reloadTime *= Math.pow(0.8, this.techLevel)
         this.turningSpeed *= Math.pow(1.1, this.techLevel)
         this.movementSpeed *= Math.pow(1.1, this.techLevel)
         this.damage *= Math.pow(1.25, this.techLevel)
+      },
+
+      initAI : function() {
+        this.model.width *= 2
+        this.rotation += Math.PI * (0.5+(this.shotsFired % 2))
+        this.x += Math.cos(this.rotation) * 4 * (this.shotsFired % 8)
+        this.y += Math.sin(this.rotation) * 4 * (this.shotsFired % 8)
         if (this.techLevel >= 4) {
           this.targetingFunction = this.predictAngleTo
         }
@@ -852,11 +996,11 @@
             rotation:this.rotation,
             x:this.x, y:this.y,
             strokeWidth: 1.5,
-            scale: [0.5+Math.random()*0.5, 1],
+            scale: [1, 1],
             stroke: '#da88fa'
           })
           streak.animate('opacity', 0.8, 0, 400, 'sqrt')
-          streak.animateToFactor('scale', 5, 400, 'sqrt')
+          streak.animateTo('scale', [1, 7] , 400, 'sqrt')
           streak.after(400, streak.removeSelf)
           this.parent.append(streak)
         }
@@ -872,22 +1016,19 @@
       reloadTime : 500,
       hitRadius : 6,
       damage : 15,
-      salvos: 4,
+      salvos: 3,
       color: '#cc44ff',
       sdTime : 1250,
       height : 1,
+      isMissile : true,
       damageType : 'electric',
 
       initialize : function() {
         Weapon.initialize.apply(this,arguments)
-        if (this.techLevel >= 4) {
-          this.salvos += 1
+        if (this.techLevel >= 5) {
+          this.salvos += 2
           this.freeSalvos = this.salvos
         }
-      },
-      
-      initAI : function() {
-        this.after(this.sdTime, this.removeSelf)
         this.range *= Math.pow(1.1, this.techLevel)
         this.movementSpeed *= Math.pow(1.1, this.techLevel)
         this.reloadTime *= Math.pow(0.9, this.techLevel)
@@ -900,13 +1041,19 @@
         }
         if (this.techLevel >= 3) {
           this.range *= 1.25
-          this.rotation = this.predictAngleToTarget(this.movementSpeed)
-        } else {
-          this.rotation = this.angleTo(this.target)
         }
         if (this.techLevel >= 4) {
           this.damage *= 1.5
           this.turningSpeed *= 1.5
+        }
+      },
+      
+      initAI : function() {
+        this.after(this.sdTime, this.removeSelf)
+        if (this.techLevel >= 3) {
+          this.rotation = this.predictAngleToTarget(this.movementSpeed)
+        } else {
+          this.rotation = this.angleTo(this.target)
         }
         this.rotation += 0.5*(Math.random() - 0.5)
       },
@@ -937,7 +1084,7 @@
         var bonus = 10 * (1-(this.elapsed / this.sdTime))
         this.target.health -= this.damage + bonus
         this.health = 0
-        if (!Beam.fastBeams) {
+        if (!Explosion.fastExplosions) {
           var dp = this.damage+bonus
           if (dp > this.target.maxHealth) dp = this.target.maxHealth
           var streak = new Circle(Math.random()*5+(dp)*0.1,{
@@ -970,13 +1117,8 @@
       hitRadius : 10,
       damageType : 'kinetic',
 
-      initAI : function() {
-        var dx = Math.cos(this.ship.rotation)
-        var dy = Math.sin(this.ship.rotation)
-        this.x += dx * 4
-        this.y += dy * 4
-        this.rotation = this.predictAngleToTarget(this.movementSpeed) +
-                        (Math.random() - 0.5) * 0.2 * (1/(1+this.techLevel))
+      initialize : function() {
+        Weapon.initialize.apply(this,arguments)
         if (this.techLevel >= 1) {
           this.movementSpeed += 50
           this.reloadTime *= 0.75
@@ -995,6 +1137,15 @@
           this.range *= 1.4
           this.reloadTime *= 0.66
         }
+      },
+      
+      initAI : function() {
+        var dx = Math.cos(this.ship.rotation)
+        var dy = Math.sin(this.ship.rotation)
+        this.x += dx * 4
+        this.y += dy * 4
+        this.rotation = this.predictAngleToTarget(this.movementSpeed) +
+                        (Math.random() - 0.5) * 0.2 * (1/(1+this.techLevel))
         var compressionWave = new CanvasNode({
           scale: [0.2, 0.8],
           stroke: '#ba88ba',
@@ -1066,23 +1217,28 @@
 
     PointDefenseMissiles = Klass(Weapon, {
       movementSpeed : 250,
-      turningSpeed : 3,
+      turningSpeed : 4,
       health : 1,
       range : 250,
-      optimalRange : 30,
+      optimalRange : 100,
       reloadTime : 500,
       damage : 4,
-      hitRadius : 6,
+      hitRadius : 7,
       height: 1,
-      salvos: 4,
+      salvos: 2,
+      isMissile : true,
       color: '#dd2222',
       damageType : 'explosive',
     
-      initAI : function() {
-        this.rotation = this.predictAngleToTarget(this.movementSpeed) + (Math.random() - 0.5)
+      initialize : function() {
+        Weapon.initialize.apply(this,arguments)
         this.reloadTime *= Math.pow(0.9, this.techLevel)
         this.turningSpeed *= Math.pow(1.2, this.techLevel)
         this.movementSpeed *= Math.pow(1.1, this.techLevel)
+      },
+      
+      initAI : function() {
+        this.rotation = this.predictAngleToTarget(this.movementSpeed) + (Math.random() - 0.5)
         this.after(1400, this.removeSelf)
       },
 
@@ -1108,18 +1264,23 @@
       range : 150,
       height : 1,
       optimalRange : 30,
-      reloadTime : 20,
+      reloadTime : 250,
       hitRadius : 5,
       damage : 2,
-      salvos: 2,
+      salvos: 1,
+      isMissile : true,
       color: '#dd2222',
       damageType : 'kinetic',
     
+      initialize : function() {
+        Weapon.initialize.apply(this,arguments)
+        this.hitRadius += this.techLevel
+      },
+      
       initAI : function() {
         this.x += Math.cos(this.ship.rotation)*20
         this.y += Math.sin(this.ship.rotation)*20
         this.model.width = 4
-        this.hitRadius += this.techLevel
         if (this.techLevel >= 2) {
           this.rotation = this.predictAngleToTarget(this.movementSpeed)
         } else {
@@ -1359,6 +1520,7 @@
           new wpn(techLevel), new pd(techLevel),
           x, y, noWarp, health)
         if (team == this.playerTeam) s.strategicAI = Player
+        else s.strategicAI = FleetAI
         s.when('destroyed', this.destroyedHandler)
         this.ships[team]++
         return s
@@ -1805,7 +1967,7 @@
         this.append(this.menu)
         this.setupMenu()
         this.newShip()
-        this.every(4000, this.newShip)
+        this.every(10000, this.newShip)
         this.selectRect.opacity = 0
       },
 
@@ -1816,9 +1978,9 @@
         var red = '#aa2222'
         var blues = this.childNodes.filter(function(n) { return n.team == blue }).length
         var reds = this.childNodes.filter(function(n) { return n.team == red }).length
-        var d = 1 + Math.max(0, blues - reds)
+        var d = 1 + Math.ceil(Math.max(0, (blues - reds) / 3)) * 3
         this.taskforce(red, Math.random()*this.width, Math.random()*this.height, d)
-        var d = 1 + Math.max(0, reds - blues)
+        var d = 1 + Math.ceil(Math.max(0, (reds - blues) / 3)) * 3
         this.taskforce(blue, Math.random()*this.width, Math.random()*this.height, d)
       },
 
@@ -1829,12 +1991,14 @@
           var wp = wps[Math.floor(wps.length * Math.random())]
           var pd = (wp == Missiles) ? PointDefenseMissiles : PointDefenseGun
           if (wp == Beam) pd = Beam
-          if (Math.random() < 0.01) {
+          if (Math.random() < 0.05) {
             wp = pd = RapidFireRailgun
           }
           var ship = new Ship(color, new wp(tl), new pd(tl),
             x + Math.random() * 100 - 50,
             y + Math.random() * 100 - 50)
+          if (color == '#2266aa')
+            ship.strategicAI = FleetAI
           this.append(ship)
         }
       },
@@ -2050,6 +2214,17 @@
           ]
         })
         this.playerControlPanel.show()
+        this.enemyControlPanel = new GuiConfig({
+          object : FleetAI,
+          container : $('debug'),
+          title : 'Enemy AI',
+          controls : [
+            ['targetByThreat', 'boolean'],
+            ['useDamageEstimates', 'boolean'],
+            ['runAway', 'boolean']
+          ]
+        })
+        this.enemyControlPanel.show()
         $('debug').appendChild(debug)
       }
 
