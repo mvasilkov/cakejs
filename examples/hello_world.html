@@ -25,6 +25,7 @@ window.onload = function() {
   
   var hello = new ElementNode(E('h2', 'Hello, world!'), {
     fontFamily: 'Arial, Sans-serif', // CSS font-family
+    noScaling : true,
     color : 'black' // CAKE color (CSS color | rgba(r,g,b,a) | [r,g,b,a] | [r,g,b])
   })
   hello.every(1000, function() { // every 1000ms, do this

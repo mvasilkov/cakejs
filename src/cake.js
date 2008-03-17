@@ -2212,7 +2212,7 @@ Animatable = Klass({
       if (typeof(ani.variable) != 'function') {
         if (start instanceof Array) {
           for (var j=0; j<start.length; j++) {
-            this[ani.variable][i] = start[i] + tweened*(end[i]-start[i])
+            this[ani.variable][j] = start[j] + tweened*(end[j]-start[j])
           }
         } else {
           this[ani.variable] = start + tweened*(end-start)
