@@ -1987,6 +1987,7 @@ Transformable = Klass({
 
   __rotateMatrix : function(rotation) {
     if (rotation.length) {
+      if (rotation[0] % Math.PI*2 == 0) return
       if (rotation[1] || rotation[2]) {
         CanvasSupport.tTranslate( this.currentMatrix,
                                   rotation[1], rotation[2] )
@@ -1997,19 +1998,20 @@ Transformable = Klass({
         CanvasSupport.tRotate( this.currentMatrix, rotation[0] )
       }
     } else {
+      if (rotation % Math.PI*2 == 0) return
       CanvasSupport.tRotate( this.currentMatrix, rotation )
     }
   },
 
   __skewXMatrix : function(skewX) {
-    if (skewX.length)
+    if (skewX.length && skewX[0])
       CanvasSupport.tSkewX(this.currentMatrix, skewX[0])
     else
       CanvasSupport.tSkewX(this.currentMatrix, skewX)
   },
 
   __skewYMatrix : function(skewY) {
-    if (skewY.length)
+    if (skewY.length && skewY[0])
       CanvasSupport.tSkewY(this.currentMatrix, skewY[0])
     else
       CanvasSupport.tSkewY(this.currentMatrix, skewY)
@@ -2017,9 +2019,12 @@ Transformable = Klass({
   
   __scaleMatrix : function(scale) {
     if (scale.length == 2) {
+      if (scale[0] == 1 && scale[1] == 1) return
       CanvasSupport.tScale(this.currentMatrix,
                            scale[0], scale[1])
     } else if (scale.length == 3) {
+      if (scale[0] == 1 || (scale[0].length && (scale[0][0] == 1 && scale[0][1] == 1)))
+        return
       CanvasSupport.tTranslate(this.currentMatrix,
                                scale[1], scale[2])
       if (scale[0].length) {
@@ -2030,7 +2035,7 @@ Transformable = Klass({
       }
       CanvasSupport.tTranslate(this.currentMatrix,
                                -scale[1], -scale[2])
-    } else {
+    } else if (scale != 1) {
       CanvasSupport.tScale( this.currentMatrix, scale, scale )
     }
   },
@@ -2053,6 +2058,7 @@ Transformable = Klass({
   __rotate : function(ctx, rotation) {
     if (rotation.length) {
       if (rotation[1] || rotation[2]) {
+        if (rotation[0] % Math.PI*2 == 0) return
         ctx.translate( rotation[1], rotation[2] )
         ctx.rotate( rotation[0] )
         ctx.translate( -rotation[1], -rotation[2] )
@@ -2065,14 +2071,14 @@ Transformable = Klass({
   },
 
   __skewX : function(ctx, skewX) {
-    if (skewX.length)
+    if (skewX.length && skewX[0])
       CanvasSupport.skewX(ctx, skewX[0])
     else
       CanvasSupport.skewX(ctx, skewX)
   },
 
   __skewY : function(ctx, skewY) {
-    if (skewY.length)
+    if (skewY.length && skewY[0])
       CanvasSupport.skewY(ctx, skewY[0])
     else
       CanvasSupport.skewY(ctx, skewY)
@@ -2395,7 +2401,7 @@ CanvasNode = Klass(Animatable, Transformable, {
   y : 0,
 
   // scale factor: number for uniform scaling, [x,y] for dimension-wise
-  scale : null,
+  scale : 1,
 
   // Rotation of the node, in radians.
   //
@@ -2404,7 +2410,7 @@ CanvasNode = Klass(Animatable, Transformable, {
   //
   // The array form is equivalent to
   // translate(cx, cy); rotate(angle); translate(-cx, -cy);
-  rotation : null,
+  rotation : 0,
 
   // Transform matrix with which to multiply the current transform matrix.
   // Applied after all other transformations.

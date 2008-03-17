@@ -5,47 +5,57 @@
 
 window.onload = function() {
 
+  // Create a 640x480 CAKE canvas and append it to document.body.
   var canvas = new Canvas(document.body, 640, 480)
 
+  // Create a not-quite-full circle named myCircle with a cyan stroke.
   var circle = new Circle(100, {
     id: 'myCircle',
-    x: canvas.width / 2,
-    y: canvas.height / 2,
-    scale: 1,
-    stroke: 'cyan',
+    x: canvas.width / 2,  // center the
+    y: canvas.height / 2, // circle
+    stroke: 'cyan', // CAKE color (CSS color | rgba(r,g,b,a) | [r,g,b,a] | [r,g,b] | gradient)
     strokeWidth: 20,
-    endAngle: Math.PI*1.8
+    endAngle: Math.PI*1.8 // Math.PI*2 would be a full circle (default)
   })
+  // Animate scale to 2 in 1000ms. Use a sine tween curve. Repeat and pingpong.
   circle.animateTo('scale', 2, 1000, 'sine', true, true)
-  circle.addFrameListener(function(t, dt) {
+  circle.addFrameListener(function(t, dt) { // before every frame, do this
     this.rotation = Math.sin(t / 1000) * Math.PI
   })
   
   var hello = new ElementNode(E('h2', 'Hello, world!'), {
-    fontFamily: 'Arial, Sans-serif',
-    noScaling : true,
-    color : 'black'
+    fontFamily: 'Arial, Sans-serif', // CSS font-family
+    color : 'black' // CAKE color (CSS color | rgba(r,g,b,a) | [r,g,b,a] | [r,g,b])
   })
-  hello.every(1000, function() {
+  hello.every(1000, function() { // every 1000ms, do this
     this.color = 'magenta'
-    this.after(200, function() {
+    this.after(200, function() { // after 200ms, do this
       this.color = 'black'
     })
   })
-  hello.align = 'center'
-  hello.valign = 'center'
-  
-  circle.append(hello)
+  hello.align = 'center' // horizontal align
+  hello.valign = 'center' // vertical align
+
+  circle.append(hello) // synonymous to appendChild
 
   canvas.append(circle)
 
-  HelloCanvas = canvas
+  HelloCanvas = canvas // for convenience
+
   /*
     Firebug fun:
     var ani = HelloCanvas.getElementById('myCircle').animators[0]
     ani.variable = 'strokeWidth'
     ani.endValue = 40
     ani.tween = 'square'
+
+    You can also do:
+    var mycanvas = document.getElementById('canvas-uuid-1').canvas
+    mycanvas.getElementById('myCircle')
+    ...
+
+    The CAKE DOM and the document DOM are separate, so this won't work:
+    document.getElementById('myCircle')
   */
 }
 
