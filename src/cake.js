@@ -2130,44 +2130,127 @@ Animatable = Klass({
     }
   },
 
-  animate : function(variableName, start, end, duration, tween) {
-    this[variableName] = start
-    start = Object.clone(start)
-    end = Object.clone(end)
-    var tweenFunction = tween
-    if (typeof(tweenFunction) != 'function') {
-      tweenFunction = this.tweenFunctions[tween] || this.tweenFunctions.linear
+  initialize : function() {
+    this.timeline = []
+    this.pendingKeyframes = []
+    this.animators = []
+    this.addFrameListener(this.updateTimeline)
+    this.addFrameListener(this.updateAnimators)
+  },
+
+  /**
+    Run and remove keyframes that have startTime <= t.
+    Keyframes are run in the ascending order of their startTimes.
+    */
+  updateTimeline : function(t, dt) {
+    if (this.pendingKeyframes.length > 0) {
+      while (this.pendingKeyframes.length > 0) {
+        var kf = this.pendingKeyframes.pop()
+        if (!kf.startTime)
+          kf.startTime = kf.relativeStartTime + t
+        this.timeline.push(kf)
+      }
+      this.timeline.sort(function(a,b) { return a.startTime - b.startTime })
     }
-    var elapsed = 0
-    var animator = null
-    animator = function(t, dt){
-      elapsed += dt
-      var pos = elapsed / duration
-      if (pos > 1) pos = 1
+    while (this.timeline[0] && this.timeline[0].startTime <= t) {
+      var keyframe = this.timeline.shift()
+      var rv = true
+      if (typeof(keyframe.action) == 'function')
+        rv = keyframe.action.call(this, t, dt, keyframe)
+      else
+        this.animators.push(keyframe.action)
+      if (keyframe.repeatEvery != null && rv != false) {
+        if (keyframe.repeatTimes != null) {
+          if (keyframe.repeatTimes <= 0) continue
+          keyframe.repeatTimes--
+        }
+        keyframe.startTime += keyframe.repeatEvery
+        this.addKeyframe(keyframe)
+      }
+    }
+  },
+
+  addKeyframe : function(kf) {
+    this.pendingKeyframes.push(kf)
+  },
+
+  /**
+    Run each animator, delete ones that have their durations exceeded.
+    */
+  updateAnimators : function(t, dt) {
+    for (var i=0; i<this.animators.length; i++) {
+      var ani = this.animators[i]
+      if (!ani.startTime) ani.startTime = t
+      var elapsed = t - ani.startTime
+      var pos = elapsed / ani.duration
+      var shouldRemove = false
+      if (pos >= 1) {
+        if (!ani.loop) {
+          pos = 1
+          shouldRemove = true
+        } else {
+          if (ani.pingpong) {
+            pos = Math.floor(pos) % 2 ? 1 - (pos % 1) : pos % 1
+          } else {
+            pos = pos % 1
+          }
+        }
+      }
+      var tweenFunction = ani.tween
+      if (typeof(tweenFunction) != 'function') {
+        tweenFunction = this.tweenFunctions[tweenFunction] || this.tweenFunctions.linear
+      }
       var tweened = tweenFunction(pos)
-      if (start instanceof Array) {
-        for (var i=0; i<start.length; i++) {
-          this[variableName][i] = start[i] + tweened*(end[i]-start[i])
+      var start = ani.startValue
+      var end = ani.endValue
+      if (typeof(ani.variable) != 'function') {
+        if (start instanceof Array) {
+          for (var j=0; j<start.length; j++) {
+            this[ani.variable][i] = start[i] + tweened*(end[i]-start[i])
+          }
+        } else {
+          this[ani.variable] = start + tweened*(end-start)
         }
       } else {
-        this[variableName] = start + tweened*(end-start)
+        ani.variable.call(this, tweened, start, end, ani, t, dt)
       }
-      if (pos >= 1)
-        this.removeFrameListener(animator)
+      if (shouldRemove) {
+        this.animators.splice(i, 1)
+        i--
+      }
     }
-    this.addFrameListener(animator)
-    return animator
   },
 
-  animateTo : function(variableName, end, duration, tween) {
-    return this.animate(variableName, this[variableName], end, duration, tween)
+  animate : function(variable, start, end, duration, tween, loop, pingpong) {
+    if (typeof(variable) != 'function')
+      this[variable] = start
+    var ani = {
+      id : Animatable.uid++,
+      variable : variable,
+      startValue : Object.clone(start),
+      endValue : Object.clone(end),
+      duration : duration,
+      tween : tween,
+      loop : loop,
+      pingpong : pingpong
+    }
+    this.animators.push(ani)
+    return ani
   },
 
-  animateFrom : function(variableName, start, duration, tween) {
-    return this.animate(variableName, start, this[variableName], duration, tween)
+  removeAnimator : function(animator) {
+    this.animators.deleteFirst(animator)
+  },
+
+  animateTo : function(variableName, end, duration, tween, loop, pingpong) {
+    return this.animate(variableName, this[variableName], end, duration, tween, loop, pingpong)
+  },
+
+  animateFrom : function(variableName, start, duration, tween, loop, pingpong) {
+    return this.animate(variableName, start, this[variableName], duration, tween, loop, pingpong)
   },
   
-  animateFactor : function(variableName, start, endFactor, duration, tween) {
+  animateFactor : function(variableName, start, endFactor, duration, tween, loop, pingpong) {
     var end
     if (start instanceof Array) {
       end = []
@@ -2177,41 +2260,40 @@ Animatable = Klass({
     } else {
       end = start * endFactor
     }
-    return this.animate(variableName, start, end, duration, tween)
+    return this.animate(variableName, start, end, duration, tween, loop, pingpong)
   },
 
-  animateToFactor : function(variableName, endFactor, duration, tween) {
+  animateToFactor : function(variableName, endFactor, duration, tween, loop, pingpong) {
     var start = this[variableName]
-    return this.animateFactor(variableName, start, endFactor, duration, tween)
+    return this.animateFactor(variableName, start, endFactor, duration, tween, loop, pingpong)
   },
 
-  every : function(duration, callback, noFirst) {
-    var elapsed = noFirst ? 0 : duration
-    var animator
-    animator = function(t, dt){
-      elapsed += dt
-      if (elapsed >= duration) {
-        if (callback.call(this) == false)
-          this.removeFrameListener(animator)
-        elapsed -= duration
-      }
+  every : function(duration, action, noFirst) {
+    var kf = {
+      action : action,
+      relativeStartTime : noFirst ? duration : 0,
+      repeatEvery : duration
     }
-    this.addFrameListener(animator)
-    return animator
+    this.addKeyframe(kf)
+    return kf
   },
 
-  after : function(duration, callback) {
-    var elapsed = 0
-    var animator
-    animator = function(t, dt){
-      elapsed += dt
-      if (elapsed >= duration) {
-        callback.call(this)
-        this.removeFrameListener(animator)
-      }
+  at : function(time, action) {
+    var kf = {
+      action : action,
+      startTime : time
     }
-    this.addFrameListener(animator)
-    return animator
+    this.addKeyframe(kf)
+    return kf
+  },
+
+  after : function(duration, action) {
+    var kf = {
+      action : action,
+      relativeStartTime : duration
+    }
+    this.addKeyframe(kf)
+    return kf
   },
 
   afterFrame : function(duration, callback) {
@@ -2243,7 +2325,7 @@ Animatable = Klass({
     return animator
   }
 })
-
+Animatable.uid = 0
 
 
 
@@ -2467,6 +2549,7 @@ CanvasNode = Klass(Animatable, Transformable, {
     this.childNodes = []
     this.frameListeners = []
     this.eventListeners = {}
+    Animatable.initialize.call(this)
     if (config)
       Object.extend(this, config)
   },
@@ -3193,6 +3276,7 @@ Canvas = Klass(CanvasNode, {
     CanvasNode.initialize.call(this, config)
     this.mouseEventStack = []
     this.canvas = canvas
+    canvas.canvas = this
     this.width = this.canvas.width
     this.height = this.canvas.height
     var th = this

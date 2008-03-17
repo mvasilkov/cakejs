@@ -8,6 +8,7 @@ window.onload = function() {
   var canvas = new Canvas(document.body, 640, 480)
 
   var circle = new Circle(100, {
+    id: 'myCircle',
     x: canvas.width / 2,
     y: canvas.height / 2,
     scale: 1,
@@ -15,15 +16,22 @@ window.onload = function() {
     strokeWidth: 20,
     endAngle: Math.PI*1.8
   })
-  circle.every(1000, function(){
-    var targetScale = (this.scale == 2) ? 0.5 : 2
-    this.animateTo('scale', targetScale, 900, 'sine')
-  })
+  circle.animateTo('scale', 2, 1000, 'sine', true, true)
   circle.addFrameListener(function(t, dt) {
     this.rotation = Math.sin(t / 1000) * Math.PI
   })
   
-  var hello = new ElementNode(E('h1', 'Hello, world!'))
+  var hello = new ElementNode(E('h2', 'Hello, world!'), {
+    fontFamily: 'Arial, Sans-serif',
+    noScaling : true,
+    color : 'black'
+  })
+  hello.every(1000, function() {
+    this.color = 'magenta'
+    this.after(200, function() {
+      this.color = 'black'
+    })
+  })
   hello.align = 'center'
   hello.valign = 'center'
   
@@ -31,6 +39,14 @@ window.onload = function() {
 
   canvas.append(circle)
 
+  HelloCanvas = canvas
+  /*
+    Firebug fun:
+    var ani = HelloCanvas.getElementById('myCircle').animators[0]
+    ani.variable = 'strokeWidth'
+    ani.endValue = 40
+    ani.tween = 'square'
+  */
 }
 
 </script>
