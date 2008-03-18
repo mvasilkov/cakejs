@@ -2110,6 +2110,68 @@ Transformable = Klass({
 })
 
 
+/**
+  Timeline is an animator that tweens between its frames.
+  */
+Timeline = Klass({
+  startTime : null,
+  loop : false,
+  pingpong : false,
+
+  initialize : function() {
+    this.keyframes = []
+  },
+
+  addKeyframe : function(time, target, tween) {
+    if (arguments.length == 1) this.keyframes.push(time)
+    else  this.keyframes.push({
+            time : time,
+            target : target,
+            tween : tween
+          })
+  },
+
+  evaluate : function(object, t, dt) {
+    if (this.startTime == null) this.startTime = t
+    t -= this.startTime
+    if (this.keyframes.length > 0) {
+      // find current keyframe
+      var currentIndex, previousFrame, currentFrame
+      for (var i=0; i<this.keyframes.length; i++) {
+        if (this.keyframes[i].time > t) {
+          currentIndex = i
+          break
+        }
+      }
+      if (currentIndex != null) {
+        previousFrame = this.keyframes[currentIndex-1]
+        currentFrame = this.keyframes[currentIndex]
+      }
+      if (!currentFrame) {
+        if (!this.keyframes.atEnd) {
+          this.keyframes.atEnd = true
+          previousFrame = this.keyframes[this.keyframes.length - 1]
+          Object.extend(object, Object.clone(previousFrame.target))
+        }
+      } else if (previousFrame) {
+        this.keyframes.atEnd = false
+        // animate towards current keyframe
+        var elapsed = t - previousFrame.time
+        var duration = currentFrame.time - previousFrame.time
+        var pos = elapsed / duration
+        for (var k in currentFrame.target) {
+          if (previousFrame.target[k] != null) {
+            object.tweenVariable(k,
+              previousFrame.target[k], currentFrame.target[k],
+              pos, currentFrame.tween)
+          }
+        }
+      }
+    }
+  }
+  
+})
+
 
 Animatable = Klass({
   tweenFunctions : {
@@ -2146,10 +2208,25 @@ Animatable = Klass({
     this.keyframes = []
     this.pendingKeyframes = []
     this.pendingTimelineEvents = []
+    this.timelines = []
     this.animators = []
+    this.addFrameListener(this.updateTimelines)
     this.addFrameListener(this.updateKeyframes)
     this.addFrameListener(this.updateTimeline)
     this.addFrameListener(this.updateAnimators)
+  },
+
+  updateTimelines : function(t, dt) {
+    for (var i=0; i<this.timelines.length; i++)
+      this.timelines[i].evaluate(this, t, dt)
+  },
+
+  addTimeline : function(tl) {
+    this.timelines.push(tl)
+  },
+
+  removeTimeline : function(tl) {
+    this.timelines.deleteFirst(tl)
   },
 
   /**
