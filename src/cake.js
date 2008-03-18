@@ -2115,6 +2115,8 @@ Animatable = Klass({
   tweenFunctions : {
     linear : function(v) { return v },
 
+    set : function(v) { return Math.floor(v) },
+
     sine : function(v) { return 0.5-0.5*Math.cos(v*Math.PI) },
 
     sproing : function(v) {
