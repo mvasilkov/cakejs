@@ -809,7 +809,7 @@
         var ex = new Explosion(this.damage * 0.01)
         ex.x = this.x
         ex.y = this.y
-        this.parent.append(ex)
+        if (this.parent) this.parent.append(ex)
       }
       
     })
@@ -905,7 +905,7 @@
         smoke.childNodes[0].animateToFactor('scale', 1+this.movementSpeed*(0.004+Math.random()*0.003), 300, 'sqrt')
         smoke.after(300, smoke.removeSelf)
         this.afterFrame(1, function() {
-          this.parentNode.append(smoke)
+          if (this.parentNode) this.parentNode.append(smoke)
         })
       },
 
@@ -914,6 +914,7 @@
       },
       hit : function() {
         Projectile.hit.apply(this, arguments)
+        if (!this.parent) return
         var rs = this.movementSpeed*this.moveSpeedFactor*(0.5+0.5*Math.random())
         var streak = new CanvasNode({
           x:this.x, y:this.y, rotation: this.rotation
@@ -950,7 +951,7 @@
           this.salvos += 2
           this.freeSalvos = this.salvos
         }
-        this.reloadTime *= Math.pow(0.8, this.techLevel)
+        this.reloadTime *= Math.pow(0.7, this.techLevel)
         this.turningSpeed *= Math.pow(1.1, this.techLevel)
         this.movementSpeed *= Math.pow(1.1, this.techLevel)
         this.damage *= Math.pow(1.25, this.techLevel)
@@ -991,7 +992,7 @@
 
       hit : function() {
         Projectile.hit.apply(this, arguments)
-        if (!Explosion.fastExplosions) {
+        if (!Explosion.fastExplosions && this.parent) {
           var streak = new Circle(Math.random()*4+this.damage*0.18,{
             rotation:this.rotation,
             x:this.x, y:this.y,
@@ -1084,7 +1085,7 @@
         var bonus = 10 * (1-(this.elapsed / this.sdTime))
         this.target.health -= this.damage + bonus
         this.health = 0
-        if (!Explosion.fastExplosions) {
+        if (!Explosion.fastExplosions && this.parent) {
           var dp = this.damage+bonus
           if (dp > this.target.maxHealth) dp = this.target.maxHealth
           var streak = new Circle(Math.random()*5+(dp)*0.1,{
@@ -1188,7 +1189,7 @@
           x:this.x, y:this.y, rotation: this.rotation
         })
         streak.after(300, streak.removeSelf)
-        this.parent.append(streak)
+        if (this.parent) this.parent.append(streak)
         this.rotation += (Math.random() - 0.5)*(1-(rs * 0.0015))
         this.elapsed += 500
         var dmg = Math.abs(rs * 0.5)
@@ -1196,7 +1197,7 @@
         var ex = new Explosion(0.25) //dmg / 100)
         ex.x = this.x
         ex.y = this.y
-        this.parent.append(ex)
+        if (this.parent) this.parent.append(ex)
         this.fill = 'darkred'
         this.health -= 2
         this.model.height = 1
@@ -1232,7 +1233,8 @@
     
       initialize : function() {
         Weapon.initialize.apply(this,arguments)
-        this.reloadTime *= Math.pow(0.9, this.techLevel)
+        this.salvos += Math.max(0, Math.round(this.techLevel - 2))
+        this.reloadTime *= Math.pow(0.8, this.techLevel)
         this.turningSpeed *= Math.pow(1.2, this.techLevel)
         this.movementSpeed *= Math.pow(1.1, this.techLevel)
       },

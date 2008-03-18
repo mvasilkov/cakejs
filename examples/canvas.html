@@ -2796,6 +2796,22 @@
   })
   Effects.add('AudioTest')
 
+  KeyframeTest = Klass(Effect, {
+    description : "Keyframe animation test.",
+
+    initialize : function() {
+      Effect.initialize.apply(this, arguments)
+      var c = new Circle(20, {fill: [192,192,192,1], stroke: 'gray'})
+      c.addKeyframe(0, {x: 0, y: 0})
+      c.addKeyframe(2000, {x: 100, y: 200, radius: 20, strokeWidth: 1}, 'sine')
+      c.addKeyframe(3000, {x: 100, y: 200, radius: 40, strokeWidth: 1}, 'sproing')
+      c.addKeyframe(4000, {x: 100, y: 200, radius: 40, strokeWidth: 10}, 'sproing')
+      c.addKeyframe(7000, {x: 500, y: 200, fill: c.fill}, 'sine')
+      c.addKeyframe(8000, {x: 500, y: 200, fill: [40,220,90,0.5]}, 'sine')
+      this.scene.append(c)
+    }
+  })
+  Effects.add('KeyframeTest')
 
 </script>
 <style type="text/css">

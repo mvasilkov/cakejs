@@ -820,7 +820,6 @@ Colors = {
 
   /**
     Converts an HSL color to its corresponding RGB color.
-    The RGB values are rounded to the nearest integer.
 
     @param h Hue in degrees (0 .. 359)
     @param s Saturation (0.0 .. 1.0)
@@ -873,12 +872,11 @@ Colors = {
         b = p
     }
 
-    return [Math.round(r),Math.round(g),Math.round(b)]
+    return [r,g,b]
   },
 
   /**
     Converts an HSV color to its corresponding RGB color.
-    The RGB values are rounded to the nearest integer.
 
     @param h Hue in degrees (0 .. 359)
     @param s Saturation (0.0 .. 1.0)
@@ -930,7 +928,7 @@ Colors = {
           break
       }
     }
-    return [Math.round(r),Math.round(g),Math.round(b)]
+    return [r,g,b]
   },
 
   /**
@@ -959,9 +957,14 @@ Colors = {
     } else if (style.isPattern) {
       return style.compile(ctx)
     } else if (style.length == 3) {
-      return 'rgba('+style.join(",")+', 1)'
+      return 'rgba('+style.map(Math.round).join(",")+', 1)'
     } else if (style.length == 4) {
-      return 'rgba('+style.join(",")+')'
+      return 'rgba('+
+              Math.round(style[0])+','+
+              Math.round(style[1])+','+
+              Math.round(style[2])+','+
+              style[3]+
+             ')'
     } else { // wtf
       throw( "Bad style: " + style )
     }
@@ -2138,20 +2141,79 @@ Animatable = Klass({
 
   initialize : function() {
     this.timeline = []
+    this.keyframes = []
     this.pendingKeyframes = []
+    this.pendingTimelineEvents = []
     this.animators = []
+    this.addFrameListener(this.updateKeyframes)
     this.addFrameListener(this.updateTimeline)
     this.addFrameListener(this.updateAnimators)
   },
 
   /**
-    Run and remove keyframes that have startTime <= t.
-    Keyframes are run in the ascending order of their startTimes.
+    Tweens between keyframes (a keyframe is an object with the new values of
+    the members of this, e.g. { time: 0, target: { x: 10, y: 20 }, tween: 'square'})
+
+    Keyframes are very much like multi-variable animators, the main difference
+    is that with keyframes the start value and the duration are implicit.
+
+    While an animation from value A to B would take two keyframes instead of
+    a single animator, chaining and reordering keyframes is very easy.
     */
-  updateTimeline : function(t, dt) {
+  updateKeyframes : function(t,dt) {
     if (this.pendingKeyframes.length > 0) {
       while (this.pendingKeyframes.length > 0) {
         var kf = this.pendingKeyframes.pop()
+        if (kf.time == null)
+          kf.time = kf.relativeTime + t
+        this.keyframes.push(kf)
+      }
+      this.keyframes.sort(function(a,b) { return a.time - b.time })
+    }
+    if (this.keyframes.length > 0) {
+      // find current keyframe
+      var currentIndex, previousFrame, currentFrame
+      for (var i=0; i<this.keyframes.length; i++) {
+        if (this.keyframes[i].time > t) {
+          currentIndex = i
+          break
+        }
+      }
+      if (currentIndex != null) {
+        previousFrame = this.keyframes[currentIndex-1]
+        currentFrame = this.keyframes[currentIndex]
+      }
+      if (!currentFrame) {
+        if (!this.keyframes.atEnd) {
+          this.keyframes.atEnd = true
+          previousFrame = this.keyframes[this.keyframes.length - 1]
+          Object.extend(this, Object.clone(previousFrame.target))
+        }
+      } else if (previousFrame) {
+        this.keyframes.atEnd = false
+        // animate towards current keyframe
+        var elapsed = t - previousFrame.time
+        var duration = currentFrame.time - previousFrame.time
+        var pos = elapsed / duration
+        for (var k in currentFrame.target) {
+          if (previousFrame.target[k] != null) {
+            this.tweenVariable(k,
+              previousFrame.target[k], currentFrame.target[k],
+              pos, currentFrame.tween)
+          }
+        }
+      }
+    }
+  },
+
+  /**
+    Run and remove timelineEvents that have startTime <= t.
+    TimelineEvents are run in the ascending order of their startTimes.
+    */
+  updateTimeline : function(t, dt) {
+    if (this.pendingTimelineEvents.length > 0) {
+      while (this.pendingTimelineEvents.length > 0) {
+        var kf = this.pendingTimelineEvents.pop()
         if (!kf.startTime)
           kf.startTime = kf.relativeStartTime + t
         this.timeline.push(kf)
@@ -2171,13 +2233,13 @@ Animatable = Klass({
           keyframe.repeatTimes--
         }
         keyframe.startTime += keyframe.repeatEvery
-        this.addKeyframe(keyframe)
+        this.addTimelineEvent(keyframe)
       }
     }
   },
 
-  addKeyframe : function(kf) {
-    this.pendingKeyframes.push(kf)
+  addTimelineEvent : function(kf) {
+    this.pendingTimelineEvents.push(kf)
   },
 
   /**
@@ -2202,24 +2264,7 @@ Animatable = Klass({
           }
         }
       }
-      var tweenFunction = ani.tween
-      if (typeof(tweenFunction) != 'function') {
-        tweenFunction = this.tweenFunctions[tweenFunction] || this.tweenFunctions.linear
-      }
-      var tweened = tweenFunction(pos)
-      var start = ani.startValue
-      var end = ani.endValue
-      if (typeof(ani.variable) != 'function') {
-        if (start instanceof Array) {
-          for (var j=0; j<start.length; j++) {
-            this[ani.variable][j] = start[j] + tweened*(end[j]-start[j])
-          }
-        } else {
-          this[ani.variable] = start + tweened*(end-start)
-        }
-      } else {
-        ani.variable.call(this, tweened, start, end, ani, t, dt)
-      }
+      this.tweenVariable(ani.variable, ani.startValue, ani.endValue, pos, ani.tween)
       if (shouldRemove) {
         this.animators.splice(i, 1)
         i--
@@ -2227,6 +2272,24 @@ Animatable = Klass({
     }
   },
 
+  tweenVariable : function(variable, start, end, pos, tweenFunction) {
+    if (typeof(tweenFunction) != 'function') {
+      tweenFunction = this.tweenFunctions[tweenFunction] || this.tweenFunctions.linear
+    }
+    var tweened = tweenFunction(pos)
+    if (typeof(variable) != 'function') {
+      if (start instanceof Array) {
+        for (var j=0; j<start.length; j++) {
+          this[variable][j] = start[j] + tweened*(end[j]-start[j])
+        }
+      } else {
+        this[variable] = start + tweened*(end-start)
+      }
+    } else {
+      variable.call(this, tweened, start, end)
+    }
+  },
+    
   animate : function(variable, start, end, duration, tween, loop, pingpong) {
     if (typeof(variable) != 'function')
       this[variable] = start
@@ -2274,13 +2337,31 @@ Animatable = Klass({
     return this.animateFactor(variableName, start, endFactor, duration, tween, loop, pingpong)
   },
 
+  addKeyframe : function(time, target, tween) {
+    var kf = {
+      relativeTime: time,
+      target: target,
+      tween: tween
+    }
+    this.pendingKeyframes.push(kf)
+  },
+
+  addKeyframeAt : function(time, target, tween) {
+    var kf = {
+      time: time,
+      target: target,
+      tween: tween
+    }
+    this.pendingKeyframes.push(kf)
+  },
+  
   every : function(duration, action, noFirst) {
     var kf = {
       action : action,
       relativeStartTime : noFirst ? duration : 0,
       repeatEvery : duration
     }
-    this.addKeyframe(kf)
+    this.addTimelineEvent(kf)
     return kf
   },
 
@@ -2289,7 +2370,7 @@ Animatable = Klass({
       action : action,
       startTime : time
     }
-    this.addKeyframe(kf)
+    this.addTimelineEvent(kf)
     return kf
   },
 
@@ -2298,7 +2379,7 @@ Animatable = Klass({
       action : action,
       relativeStartTime : duration
     }
-    this.addKeyframe(kf)
+    this.addTimelineEvent(kf)
     return kf
   },
 
