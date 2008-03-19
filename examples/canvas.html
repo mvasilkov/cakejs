@@ -1424,6 +1424,7 @@
           if (e) {
             loading.content.append(E('h3', 'Error', {style:{color:'black'}}),
               e.toString())
+            console.log(e)
           } else if (xhr.responseXML) {
             loading.content.append(E('h3', 'Error: '+xhr.status,
               {style:{color:'black'}}),
@@ -1479,7 +1480,8 @@
           'gearflowers.svg',
           'svg_examples/struct-image-01-t.svg',
           'svg_examples/struct-image-04-t.svg',
-          'svg_examples/anim01.svg'
+          'svg_examples/anim01.svg',
+          'svg_examples/animMotion01.svg'
         ], {title: 'Some famous and less famous SVGs'}
       ],
       ['file',

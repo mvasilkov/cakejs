@@ -694,7 +694,7 @@ Curves = {
   
   cubicValue : function(a,b,c,d,t) {
     var a3 = a*3, b3 = b*3, c3 = c*3
-    return a + t*(b2 - a3 + t*(a3-2*b3+c3 + t*(b3-a-c3+d)))
+    return a + t*(b3 - a3 + t*(a3-2*b3+c3 + t*(b3-a-c3+d)))
   },
 
   catmullRomPoint : function (a,b,c,d, t) {
@@ -6349,7 +6349,12 @@ SVGParser = {
         if (variable == 'x') variable = 'cx'
         if (variable == 'y') variable = 'cy'
       }
-      return {after:after, duration:duration, variable:variable, fill:fill}
+      return {
+        after: isNaN(after) ? 0 : after,
+        duration: isNaN(duration) ? 0 : duration,
+        variable: variable,
+        fill: fill
+      }
     },
 
     animate : function(c, cn) {
@@ -6380,7 +6385,11 @@ SVGParser = {
     },
 
     animateMotion : function(c,cn) {
-      var path = new Path(c.getAttribute('path'))
+      var path
+      if (c.getAttribute('path'))
+        path = new Path(c.getAttribute('path'))
+      var p = new CanvasNode()
+      p.__motionPath = path
       var rotate = c.getAttribute('rotate')
       var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
       cn.after(o.after, function() {
@@ -6389,7 +6398,8 @@ SVGParser = {
           this.after(o.duration, function(){ this.x = ox; this.y = oy})
         }
         var motion = function(pos) {
-          var pa = path.pointAngleAt(pos)
+        
+          var pa = p.__motionPath.pointAngleAt(pos)
           this.x = pa.point[0]
           this.y = pa.point[1]
           if (rotate == 'auto') {
@@ -6399,6 +6409,15 @@ SVGParser = {
           }
         }
         this.animate(motion, 0, 1, o.duration)
+      })
+      return p
+    },
+
+    mpath : function(c,cn, defs) {
+      var href = c.getAttribute('xlink:href')
+      href = href.replace(/^#/,'')
+      this.getDef(defs, href, function(obj) {
+        cn.__motionPath = obj
       })
     },
 
@@ -6928,6 +6947,7 @@ SVGParser = {
     },
 
     rotate : function(node, v) {
+      if (v == 'auto' || v == 'auto-reverse') return
       var rot = v.split(/[\s,]+/).map(parseFloat)
       var angle = rot[0] * this.DEG_TO_RAD_FACTOR
       if (rot.length > 1)
