@@ -445,7 +445,7 @@ T = function(text) {
   @addon
   */
 Object.forceExtend = function(dst, src) {
-  for (i in src) {
+  for (var i in src) {
     try{ dst[i] = src[i] } catch(e) {}
   }
   return dst
@@ -464,7 +464,7 @@ if (!Object.extend)
   @addon
   */
 Object.conditionalExtend = function(dst, src) {
-  for (i in src) {
+  for (var i in src) {
     if (dst[i] == null)
       dst[i] = src[i]
   }
@@ -680,6 +680,21 @@ Curves = {
       a[0] + t*(bx3 - ax3 + t*(ax3-2*bx3+cx3 + t*(bx3-a[0]-cx3+d[0]))),
       a[1] + t*(by3 - ay3 + t*(ay3-2*by3+cy3 + t*(by3-a[1]-cy3+d[1])))
     ]
+  },
+
+  linearValue : function(a,b,t) {
+    return a + (b-a)*t
+  },
+
+  quadraticValue : function(a,b,c,t) {
+    var d = a + (b-a)*t
+    var e = b + (c-b)*t
+    return d + (e-d)*t
+  },
+  
+  cubicValue : function(a,b,c,d,t) {
+    var a3 = a*3, b3 = b*3, c3 = c*3
+    return a + t*(b2 - a3 + t*(a3-2*b3+c3 + t*(b3-a-c3+d)))
   },
 
   catmullRomPoint : function (a,b,c,d, t) {
@@ -2112,13 +2127,21 @@ Transformable = Klass({
 
 /**
   Timeline is an animator that tweens between its frames.
+
+  When object.time = k.time:
+       object.state = k.state
+  When object.time > k[i-1].time and object.time < k[i].time:
+       object.state = k[i].tween(position, k[i-1].state, k[i].state)
+       where position = elapsed / duration,
+             elapsed = object.time - k[i-1].time,
+             duration = k[i].time - k[i-1].time
   */
 Timeline = Klass({
   startTime : null,
   loop : false,
-  pingpong : false,
 
-  initialize : function() {
+  initialize : function(loop, pingpong) {
+    this.loop = loop
     this.keyframes = []
   },
 
@@ -2131,9 +2154,9 @@ Timeline = Klass({
           })
   },
 
-  evaluate : function(object, t, dt) {
-    if (this.startTime == null) this.startTime = t
-    t -= this.startTime
+  evaluate : function(object, ot, dt) {
+    if (this.startTime == null) this.startTime = ot
+    var t = ot - this.startTime
     if (this.keyframes.length > 0) {
       // find current keyframe
       var currentIndex, previousFrame, currentFrame
@@ -2152,6 +2175,7 @@ Timeline = Klass({
           this.keyframes.atEnd = true
           previousFrame = this.keyframes[this.keyframes.length - 1]
           Object.extend(object, Object.clone(previousFrame.target))
+          if (this.repeat) this.startTime = ot
         }
       } else if (previousFrame) {
         this.keyframes.atEnd = false
@@ -3172,8 +3196,10 @@ CanvasNode = Klass(Animatable, Transformable, {
         ctx.fillOn = false
       } else {
         ctx.fillOn = true
-        if (this.fill != true)
-          ctx.setFillStyle( Colors.parseColorStyle(this.fill, ctx) )
+        if (this.fill != true) {
+          var fillStyle = Colors.parseColorStyle(this.fill, ctx)
+          ctx.setFillStyle( fillStyle )
+        }
       }
     }
     if (this.stroke != null) {
@@ -3722,7 +3748,12 @@ Canvas = Klass(CanvasNode, {
       this.handleUpdate(this.time, dt)
       this.clearMouseEvents()
       if (!this.redrawOnlyWhenChanged || this.changed) {
-        this.handleDraw(ctx)
+        try {
+          this.handleDraw(ctx)
+        } catch(e) {
+          console.log(e)
+          throw(e)
+        }
         this.changed = false
       }
       this.currentElapsed = (new Date().getTime() - this.realTime)
@@ -4184,7 +4215,7 @@ ElementNode = Klass(CanvasNode, {
         this.element.style.color = fs
       }
     } else if (fs.length) {
-      this.element.style.color = 'rgb(' + fs.slice(0,3).join(",") + ')'
+      this.element.style.color = 'rgb(' + fs.slice(0,3).map(Math.floor).join(",") + ')'
     }
     if (bb) {
       this.element.style.width = xs * bb[2] + 'px'
@@ -5504,6 +5535,52 @@ Path = Klass(Drawable, {
       a00 * x2 + a01 * y2,      a10 * x2 + a11 * y2,
       a00 * x3 + a01 * y3,      a10 * x3 + a11 * y3
     ]
+  },
+
+  pointAngleAt : function(t) {
+    var segments = []
+    var segs = this.getSegments()
+    var x = 0, y = 0
+    for (var i=0; i<segs.length; i++) {
+      var seg = segs[i]
+      if (seg[1].length < 2) continue
+      if (seg[0] != 'moveTo') {
+        segments.push([x, y, seg])
+      }
+      x = seg[1][seg[1].length-2]
+      y = seg[1][seg[1].length-1]
+    }
+    if (segments.length < 1)
+      return {point: [x, y], angle: 0 }
+    if (t >= 1) {
+      var rt = 1
+      var seg = segments[segments.length-1]
+    } else {
+      var idx = t * segments.length
+      var rt = t - Math.floor(idx)
+      var seg = segments[Math.floor(idx)]
+    }
+    var angle = 0
+    var cmd = seg[2][0]
+    var args = seg[2][1]
+    switch (cmd) {
+      case 'bezierCurveTo':
+        x = Curves.cubicValue(seg[0], args[0], args[2], args[4], rt)
+        y = Curves.cubicValue(seg[1], args[1], args[3], args[5], rt)
+        angle = Curves.cubicAngle([seg[0], seg[1]], [args[0], args[1]], [args[2], args[3]], [args[4], args[5]], rt)
+        break
+      case 'quadraticCurveTo':
+        x = Curves.quadraticValue(seg[0], args[0], args[2], rt)
+        y = Curves.quadraticValue(seg[1], args[1], args[3], rt)
+        angle = Curves.quadraticAngle([seg[0], seg[1]], [args[0], args[1]], [args[2], args[3]], rt)
+        break
+      case 'lineTo':
+        x = Curves.linearValue(seg[0], args[0], rt)
+        y = Curves.linearValue(seg[1], args[1], rt)
+        angle = Curves.lineAngle([seg[0], seg[1]], [args[0], args[1]], rt)
+        break
+    }
+    return {point: [x, y], angle: angle }
   }
 
 })
@@ -6263,6 +6340,104 @@ SVGParser = {
       cn.root.metadata = c
     },
 
+    parseAnimateTag : function(c, cn) {
+      var after = parseFloat(c.getAttribute('begin')) * 1000
+      var duration = parseFloat(c.getAttribute('dur')) * 1000
+      var variable = c.getAttribute('attributeName')
+      var fill = c.getAttribute('fill')
+      if (cn.tagName == 'rect') {
+        if (variable == 'x') variable = 'cx'
+        if (variable == 'y') variable = 'cy'
+      }
+      return {after:after, duration:duration, variable:variable, fill:fill}
+    },
+
+    animate : function(c, cn) {
+      var from = this.parseUnit(c.getAttribute('from'), cn, 'x')
+      var to = this.parseUnit(c.getAttribute('to'), cn, 'x')
+      var by = this.parseUnit(c.getAttribute('by'), cn, 'x')
+      var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
+      if (to == null) to = from + by
+      cn.after(o.after, function() {
+        if (o.fill == 'remove') {
+          var orig = Object.clone(this[o.variable])
+          this.after(o.duration, function(){ this[o.variable] = orig })
+        }
+        this.animate(o.variable, from, to, o.duration)
+      })
+    },
+
+    set : function(c, cn) {
+      var to = c.getAttribute('to')
+      var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
+      cn.after(o.after, function() {
+        if (o.fill == 'remove') {
+          var orig = Object.clone(this[o.variable])
+          this.after(o.duration, function(){ this[o.variable] = orig })
+        }
+        this[o.variable] = to
+      })
+    },
+
+    animateMotion : function(c,cn) {
+      var path = new Path(c.getAttribute('path'))
+      var rotate = c.getAttribute('rotate')
+      var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
+      cn.after(o.after, function() {
+        if (o.fill == 'remove') {
+          var ox = this.x, oy = this.y
+          this.after(o.duration, function(){ this.x = ox; this.y = oy})
+        }
+        var motion = function(pos) {
+          var pa = path.pointAngleAt(pos)
+          this.x = pa.point[0]
+          this.y = pa.point[1]
+          if (rotate == 'auto') {
+            this.rotation = pa.angle
+          } else if (rotate == 'auto-reverse') {
+            this.rotation = pa.angle + Math.PI
+          }
+        }
+        this.animate(motion, 0, 1, o.duration)
+      })
+    },
+
+    animateColor : function(c, cn, defs) {
+      var from = c.getAttribute('from')
+      var to = c.getAttribute('to')
+      from = SVGParser.SVGMapping.__parseStyle(from, null, defs)
+      to = SVGParser.SVGMapping.__parseStyle(to, null, defs)
+      var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
+      cn.after(o.after, function() {
+        if (o.fill == 'remove') {
+          var orig = Object.clone(this[o.variable])
+          this.after(o.duration, function(){ this[o.variable] = orig })
+        }
+        this.animate(o.variable, from, to, o.duration)
+      })
+    },
+
+    animateTransform : function(c, cn) {
+      var from = this.parseUnit(c.getAttribute('from'), cn, 'x')
+      var to = this.parseUnit(c.getAttribute('to'), cn, 'x')
+      var by = this.parseUnit(c.getAttribute('by'), cn, 'x')
+      var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
+      o.variable = c.getAttribute('type')
+      if (o.variable == 'rotate') {
+        o.variable = 'rotation'
+        from *= Math.PI/180
+        to *= Math.PI/180
+      }
+      if (to == null) to = from + by
+      cn.after(o.after, function() {
+        if (o.fill == 'remove') {
+          var orig = Object.clone(this[o.variable])
+          this.after(o.duration, function(){ this[o.variable] = orig })
+        }
+        this.animate(o.variable, from, to, o.duration)
+      })
+    },
+
     a : function(c, cn) {
       var href = c.getAttribute('xlink:href') ||
                  c.getAttribute('href')
@@ -6302,8 +6477,8 @@ SVGParser = {
       p.fill = 'none'
       p.dX = this.parseUnit(c.getAttribute('x'), cn, 'x') || 0
       p.dY = this.parseUnit(c.getAttribute('y'), cn, 'y') || 0
-      p.srcWidth = this.parseUnit(c.getAttribute('width', 'x'), cn)
-      p.srcHeight = this.parseUnit(c.getAttribute('height', 'y'), cn)
+      p.srcWidth = this.parseUnit(c.getAttribute('width'), cn, 'x')
+      p.srcHeight = this.parseUnit(c.getAttribute('height'), cn, 'y')
       return p
     },
 
@@ -6915,6 +7090,12 @@ SVGParser = {
 
       } else if (v == 'none') {
         return 'none'
+
+      } else if (v == 'freeze') { // SMIL is evil, but so are we
+        return null
+
+      } else if (v == 'remove') {
+        return null
 
       } else { // unknown value, maybe it's an ICC color
         return v
