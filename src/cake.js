@@ -540,6 +540,7 @@ Object.isImageLoaded = function(image) {
 Object.sum = function(a,b) {
   if (a instanceof Array) {
     if (b instanceof Array) {
+      var ab = []
       for (var i=0; i<a.length; i++) {
         ab[i] = a[i] + b[i]
       }
@@ -560,6 +561,7 @@ Object.sum = function(a,b) {
 Object.sub = function(a,b) {
   if (a instanceof Array) {
     if (b instanceof Array) {
+      var ab = []
       for (var i=0; i<a.length; i++) {
         ab[i] = a[i] - b[i]
       }
@@ -5293,10 +5295,14 @@ Path = Klass(Drawable, {
       return this.vertices.slice(1,-1)
     var verts = []
     for (var i=1; i<segs.length-1; i++) {
-      var a = segs[i-1][1].slice(0,2)
-      var b = segs[i][1].slice(-2)
-      var c = segs[i+1][1].slice(0,2)
-      var t = 0.5 * (Curves.lineAngle(a,b) + Curves.lineAngle(b,c))
+      var b = segs[i-1][1].slice(-2)
+      var c = segs[i][1].slice(0,2)
+      if (segs[i-1].length > 2) {
+        var a = segs[i-1][1].slice(-4,-2)
+        var t = 0.5 * (Curves.lineAngle(a,b) + Curves.lineAngle(b,c))
+      } else {
+        var t = Curves.lineAngle(b,c)
+      }
       verts.push(
         {point: b, angle: t}
       )
