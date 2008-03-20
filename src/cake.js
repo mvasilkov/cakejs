@@ -837,6 +837,12 @@ Curves = {
     }
   })(),
 
+  quadraticLengthPointAngle : function(a,b,c,lt,error) {
+    var p1 = this.linePoint(a,b,2/3)
+    var p2 = this.linePoint(b,c,1/3)
+    return this.cubicLengthPointAngle(a,p1,p2,c, error)
+  },
+
   cubicLengthPointAngle : function(a,b,c,d,lt,error) {
     // this thing outright rapes the GC.
     // how about not creating a billion arrays, hmm?
@@ -860,7 +866,7 @@ Curves = {
         var dl = lensum - tl
         var dt = dl / (lensum-prevlensum)
         return {point: this.linePoint(prevpoint, point, 1-dt),
-                angle: this.lineAngle(prevpoint, point) }
+                angle: this.cubicAngle(a,b,c,d, fac*(i-dt)) }
       }
     }
     return {point: d.slice(0), angle: this.lineAngle(c,d)}
@@ -5306,6 +5312,12 @@ Path = Klass(Drawable, {
       verts.push(
         {point: b, angle: t}
       )
+      var id = segs[i][2]
+      if (id != null) {
+        i++
+        while (segs[i] && segs[i][2] == id) i++
+        i--
+      }
     }
     return verts
   },
@@ -5316,10 +5328,10 @@ Path = Klass(Drawable, {
         this.compiled = this.compileSVGPath(this.segments)
         this.compiledSegments = this.segments
       }
-      return this.compiled
-    } else {
-      return this.segments
+    } else if (!this.compiled) {
+      this.compiled = Object.clone(this.segments)
     }
+    return this.compiled
   },
 
   /**
@@ -5488,14 +5500,18 @@ Path = Klass(Drawable, {
           break
 
         case 'A':
-          commands.push.apply(commands, this.solveArc(x,y, coords))
+          var arc_segs = this.solveArc(x,y, coords)
+          for (var l=0; l<arc_segs.length; l++) arc_segs[l][2] = i
+          commands.push.apply(commands, arc_segs)
           x = coords[5]
           y = coords[6]
           break
         case 'a':
           coords[5] += x
           coords[6] += y
-          commands.push.apply(commands, this.solveArc(x,y, coords))
+          var arc_segs = this.solveArc(x,y, coords)
+          for (var l=0; l<arc_segs.length; l++) arc_segs[l][2] = i
+          commands.push.apply(commands, arc_segs)
           x = coords[5]
           y = coords[6]
           break
@@ -5604,9 +5620,41 @@ Path = Klass(Drawable, {
     ]
   },
 
+  getLength : function() {
+    var segs = this.getSegments()
+    if (segs.arcLength == null) {
+      segs.arcLength = 0
+      var x=0, y=0
+      for (var i=0; i<segs.length; i++) {
+        var args = segs[i][1]
+        if (args.length < 2) continue
+        switch(segs[i][0]) {
+          case 'bezierCurveTo':
+            segs[i][3] = Curves.cubicLength(
+              [x, y], [args[0], args[1]], [args[2], args[3]], [args[4], args[5]])
+            break
+          case 'quadraticCurveTo':
+            segs[i][3] = Curves.quadraticLength(
+              [x, y], [args[0], args[1]], [args[2], args[3]])
+            break
+          case 'lineTo':
+            segs[i][3] = Curves.lineLength(
+              [x, y], [args[0], args[1]])
+            break
+        }
+        if (segs[i][3])
+          segs.arcLength += segs[i][3]
+        x = args[args.length-2]
+        y = args[args.length-1]
+      }
+    }
+    return segs.arcLength
+  },
+
   pointAngleAt : function(t) {
     var segments = []
     var segs = this.getSegments()
+    var length = this.getLength()
     var x = 0, y = 0
     for (var i=0; i<segs.length; i++) {
       var seg = segs[i]
@@ -5623,23 +5671,27 @@ Path = Klass(Drawable, {
       var rt = 1
       var seg = segments[segments.length-1]
     } else {
-      var idx = t * segments.length
-      var rt = idx - Math.floor(idx)
-      var seg = segments[Math.floor(idx)]
+      var len = t * length
+      var rlen = 0, idx, rt
+      for (var i=0; i<segments.length; i++) {
+        if (rlen + segments[i][2][3] > len) {
+          idx = i
+          rt = (len - rlen) / segments[i][2][3]
+          break
+        }
+        rlen += segments[i][2][3]
+      }
+      var seg = segments[idx]
     }
     var angle = 0
     var cmd = seg[2][0]
     var args = seg[2][1]
     switch (cmd) {
       case 'bezierCurveTo':
-        x = Curves.cubicValue(seg[0], args[0], args[2], args[4], rt)
-        y = Curves.cubicValue(seg[1], args[1], args[3], args[5], rt)
-        angle = Curves.cubicAngle([seg[0], seg[1]], [args[0], args[1]], [args[2], args[3]], [args[4], args[5]], rt)
+        return Curves.cubicLengthPointAngle([seg[0], seg[1]], [args[0], args[1]], [args[2], args[3]], [args[4], args[5]], rt)
         break
       case 'quadraticCurveTo':
-        x = Curves.quadraticValue(seg[0], args[0], args[2], rt)
-        y = Curves.quadraticValue(seg[1], args[1], args[3], rt)
-        angle = Curves.quadraticAngle([seg[0], seg[1]], [args[0], args[1]], [args[2], args[3]], rt)
+        return Curves.quadraticLengthPointAngle([seg[0], seg[1]], [args[0], args[1]], [args[2], args[3]], rt)
         break
       case 'lineTo':
         x = Curves.linearValue(seg[0], args[0], rt)
