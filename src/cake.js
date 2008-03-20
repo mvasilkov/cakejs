@@ -5618,7 +5618,7 @@ Path = Klass(Drawable, {
       var seg = segments[segments.length-1]
     } else {
       var idx = t * segments.length
-      var rt = t - Math.floor(idx)
+      var rt = idx - Math.floor(idx)
       var seg = segments[Math.floor(idx)]
     }
     var angle = 0
