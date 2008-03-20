@@ -6550,6 +6550,10 @@ SVGParser = {
       var path
       if (c.getAttribute('path'))
         path = new Path(c.getAttribute('path'))
+      else if (c.getAttribute('values')) {
+        var vals = c.getAttribute('values')
+        path = new Path("M" + vals.split(";").join("L"))
+      }
       var p = new CanvasNode()
       p.__motionPath = path
       var rotate = c.getAttribute('rotate')
