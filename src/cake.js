@@ -534,6 +534,46 @@ Object.isImageLoaded = function(image) {
   return !!image.naturalWidth
 }
 
+/**
+  Sums two objects.
+  */
+Object.sum = function(a,b) {
+  if (a instanceof Array) {
+    if (b instanceof Array) {
+      for (var i=0; i<a.length; i++) {
+        ab[i] = a[i] + b[i]
+      }
+      return ab
+    } else {
+      return a.map(function(v){ return v + b })
+    }
+  } else if (b instanceof Array) {
+    return b.map(function(v){ return v + a })
+  } else {
+    return a + b
+  }
+}
+
+/**
+  Substracts b from a.
+  */
+Object.sub = function(a,b) {
+  if (a instanceof Array) {
+    if (b instanceof Array) {
+      for (var i=0; i<a.length; i++) {
+        ab[i] = a[i] - b[i]
+      }
+      return ab
+    } else {
+      return a.map(function(v){ return v - b })
+    }
+  } else if (b instanceof Array) {
+    return b.map(function(v){ return a - v })
+  } else {
+    return a - b
+  }
+}
+
 if (!window.Mouse) Mouse = {}
 /**
   Returns the coordinates for a mouse event relative to element.
@@ -2138,10 +2178,10 @@ Transformable = Klass({
   */
 Timeline = Klass({
   startTime : null,
-  loop : false,
+  repeat : false,
 
-  initialize : function(loop, pingpong) {
-    this.loop = loop
+  initialize : function(repeat, pingpong) {
+    this.repeat = repeat
     this.keyframes = []
   },
 
@@ -2356,16 +2396,26 @@ Animatable = Klass({
       var pos = elapsed / ani.duration
       var shouldRemove = false
       if (pos >= 1) {
-        if (!ani.loop) {
+        if (!ani.repeat) {
           pos = 1
           shouldRemove = true
         } else {
-          if (ani.pingpong) {
-            pos = Math.floor(pos) % 2 ? 1 - (pos % 1) : pos % 1
+          if (ani.repeat !== true) ani.repeat = Math.max(0, ani.repeat - 1)
+          if (ani.accumulate) {
+            ani.startValue = Object.clone(ani.endValue)
+            ani.endValue = Object.sum(ani.difference, ani.endValue)
+          }
+          if (ani.repeat == 0) {
+            shouldRemove = true
+            pos = 1
           } else {
+            ani.startTime = t
             pos = pos % 1
           }
         }
+      } else if (ani.repeat && ani.repeat !== true && ani.repeat <= pos) {
+        shouldRemove = true
+        pos = ani.repeat
       }
       this.tweenVariable(ani.variable, ani.startValue, ani.endValue, pos, ani.tween)
       if (shouldRemove) {
@@ -2393,18 +2443,29 @@ Animatable = Klass({
     }
   },
     
-  animate : function(variable, start, end, duration, tween, loop, pingpong) {
+  animate : function(variable, start, end, duration, tween, config) {
+    var start = Object.clone(start)
+    var end = Object.clone(end)
+    if (!config) config = {}
+    if (config.additive) {
+      var diff = Object.sub(end, start)
+      start = Object.sum(start, this[variable])
+      end = Object.sum(end, this[variable])
+    }
     if (typeof(variable) != 'function')
-      this[variable] = start
+      this[variable] = Object.clone(start)
     var ani = {
       id : Animatable.uid++,
       variable : variable,
-      startValue : Object.clone(start),
-      endValue : Object.clone(end),
+      startValue : start,
+      endValue : end,
+      difference : diff,
       duration : duration,
       tween : tween,
-      loop : loop,
-      pingpong : pingpong
+      repeat : config.repeat,
+      additive : config.additive,
+      accumulate : config.accumulate,
+      pingpong : config.pingpong
     }
     this.animators.push(ani)
     return ani
@@ -2414,15 +2475,15 @@ Animatable = Klass({
     this.animators.deleteFirst(animator)
   },
 
-  animateTo : function(variableName, end, duration, tween, loop, pingpong) {
-    return this.animate(variableName, this[variableName], end, duration, tween, loop, pingpong)
+  animateTo : function(variableName, end, duration, tween, config) {
+    return this.animate(variableName, this[variableName], end, duration, tween, config)
   },
 
-  animateFrom : function(variableName, start, duration, tween, loop, pingpong) {
-    return this.animate(variableName, start, this[variableName], duration, tween, loop, pingpong)
+  animateFrom : function(variableName, start, duration, tween, config) {
+    return this.animate(variableName, start, this[variableName], duration, tween, config)
   },
   
-  animateFactor : function(variableName, start, endFactor, duration, tween, loop, pingpong) {
+  animateFactor : function(variableName, start, endFactor, duration, tween, config) {
     var end
     if (start instanceof Array) {
       end = []
@@ -2432,12 +2493,12 @@ Animatable = Klass({
     } else {
       end = start * endFactor
     }
-    return this.animate(variableName, start, end, duration, tween, loop, pingpong)
+    return this.animate(variableName, start, end, duration, tween, config)
   },
 
-  animateToFactor : function(variableName, endFactor, duration, tween, loop, pingpong) {
+  animateToFactor : function(variableName, endFactor, duration, tween, config) {
     var start = this[variableName]
-    return this.animateFactor(variableName, start, endFactor, duration, tween, loop, pingpong)
+    return this.animateFactor(variableName, start, endFactor, duration, tween, config)
   },
 
   addKeyframe : function(time, target, tween) {
@@ -6341,19 +6402,54 @@ SVGParser = {
     },
 
     parseAnimateTag : function(c, cn) {
-      var after = parseFloat(c.getAttribute('begin')) * 1000
-      var duration = parseFloat(c.getAttribute('dur')) * 1000
+      var after = SVGParser.SVGTagMapping.parseTime(c.getAttribute('begin'))
+      var dur = SVGParser.SVGTagMapping.parseTime(c.getAttribute('dur'))
+      var end = SVGParser.SVGTagMapping.parseTime(c.getAttribute('end'))
+      if (dur == null) dur = end-after
+      dur = isNaN(dur) ? 0 : dur
       var variable = c.getAttribute('attributeName')
       var fill = c.getAttribute('fill')
       if (cn.tagName == 'rect') {
         if (variable == 'x') variable = 'cx'
         if (variable == 'y') variable = 'cy'
       }
+      var accum = c.getAttribute('accumulate') == 'sum'
+      var additive = c.getAttribute('additive')
+      if (additive) additive = additive == 'sum'
+      else additive = accum
+      var repeat = c.getAttribute('repeatCount')
+      if (repeat == 'indefinite') repeat = true
+      else repeat = parseFloat(repeat)
+      if (!repeat && dur > 0) {
+        var repeatDur = c.getAttribute('repeatDur')
+        if (repeatDur == 'indefinite') repeat = true
+        else repeat = SVGParser.SVGTagMapping.parseTime(repeatDur) / dur
+      }
       return {
         after: isNaN(after) ? 0 : after,
-        duration: isNaN(duration) ? 0 : duration,
+        duration: dur,
+        restart: c.getAttribute('restart'),
+        additive : additive,
+        accumulate : accum,
+        repeat : repeat,
         variable: variable,
         fill: fill
+      }
+    },
+
+    parseTime : function(value) {
+      if (!value) return null
+      if (value.match(/[0-9]$/)) {
+        var hms = value.split(":")
+        var s = hms[hms.length-1] || 0
+        var m = hms[hms.length-2] || 0
+        var h = hms[hms.length-3] || 0
+        return (parseFloat(h)*3600 + parseFloat(m)*60 + parseFloat(s)) * 1000
+      } else {
+        var fac = 60
+        if (value.match(/s$/i)) fac = 1
+        else if (value.match(/h$/i)) fac = 3600
+        return parseFloat(value) * fac * 1000
       }
     },
 
@@ -6368,7 +6464,15 @@ SVGParser = {
           var orig = Object.clone(this[o.variable])
           this.after(o.duration, function(){ this[o.variable] = orig })
         }
-        this.animate(o.variable, from, to, o.duration)
+        if (o.additive) {
+          from += this[o.variable]
+          to += this[o.variable]
+        }
+        this.animate(o.variable, from, to, o.duration, 'linear', {
+          repeat: o.repeat,
+          additive: o.additive,
+          accumulate: o.accumulate
+        })
       })
     },
 
@@ -6398,7 +6502,6 @@ SVGParser = {
           this.after(o.duration, function(){ this.x = ox; this.y = oy})
         }
         var motion = function(pos) {
-        
           var pa = p.__motionPath.pointAngleAt(pos)
           this.x = pa.point[0]
           this.y = pa.point[1]
@@ -6408,7 +6511,11 @@ SVGParser = {
             this.rotation = pa.angle + Math.PI
           }
         }
-        this.animate(motion, 0, 1, o.duration)
+        this.animate(motion, 0, 1, o.duration, 'linear', {
+          repeat: o.repeat,
+          additive: o.additive,
+          accumulate: o.accumulate
+        })
       })
       return p
     },
@@ -6432,7 +6539,11 @@ SVGParser = {
           var orig = Object.clone(this[o.variable])
           this.after(o.duration, function(){ this[o.variable] = orig })
         }
-        this.animate(o.variable, from, to, o.duration)
+        this.animate(o.variable, from, to, o.duration, 'linear', {
+          repeat: o.repeat,
+          additive: o.additive,
+          accumulate: o.accumulate
+        })
       })
     },
 
@@ -6446,6 +6557,9 @@ SVGParser = {
         o.variable = 'rotation'
         from *= Math.PI/180
         to *= Math.PI/180
+      } else if (o.variable == 'scale' && o.additive) {
+        o.additive = false // scale "additive" is actually "multiply", so let's
+                           // just not touch this particular form of madness
       }
       if (to == null) to = from + by
       cn.after(o.after, function() {
@@ -6453,7 +6567,11 @@ SVGParser = {
           var orig = Object.clone(this[o.variable])
           this.after(o.duration, function(){ this[o.variable] = orig })
         }
-        this.animate(o.variable, from, to, o.duration)
+        this.animate(o.variable, from, to, o.duration, 'linear', {
+          repeat: o.repeat,
+          additive: o.additive,
+          accumulate: o.accumulate
+        })
       })
     },
 
