@@ -152,6 +152,7 @@
       this.canvas.eventListeners = {}
       this.canvas.context = false
       this.canvas.showFpsHistogram = true
+      this.canvas.redrawOnlyWhenChanged = false
       var klass = window[name]
       this.effectObject = new klass(this.canvas, this.controlsElement)
       this.canvas.append(this.effectObject.scene)
