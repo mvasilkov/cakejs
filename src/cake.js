@@ -2887,6 +2887,7 @@ CanvasNode = Klass(Animatable, Transformable, {
       a[i].parent = a[i].parentNode = this
       a[i].setRoot(this.root)
     }
+    this.changed = true
   },
 
   /**
@@ -2921,6 +2922,7 @@ CanvasNode = Klass(Animatable, Transformable, {
       delete a[i].parentNode
       a[i].setRoot(null)
     }
+    this.changed = true
   },
 
   /**
