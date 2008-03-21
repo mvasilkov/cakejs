@@ -2250,6 +2250,7 @@ Animatable = Klass({
     linear : function(v) { return v },
 
     set : function(v) { return Math.floor(v) },
+    discrete : function(v) { return Math.floor(v) },
 
     sine : function(v) { return 0.5-0.5*Math.cos(v*Math.PI) },
 
@@ -5651,7 +5652,7 @@ Path = Klass(Drawable, {
     return segs.arcLength
   },
 
-  pointAngleAt : function(t) {
+  pointAngleAt : function(t, config) {
     var segments = []
     var segs = this.getSegments()
     var length = this.getLength()
@@ -5670,6 +5671,14 @@ Path = Klass(Drawable, {
     if (t >= 1) {
       var rt = 1
       var seg = segments[segments.length-1]
+    } else if (config && config.discrete) {
+      var idx = Math.floor(t * segments.length)
+      var seg = segments[idx]
+      var rt = 0
+    } else if (config && config.linear) {
+      var idx = t * segments.length
+      var rt = idx - Math.floor(idx)
+      var seg = segments[Math.floor(idx)]
     } else {
       var len = t * length
       var rlen = 0, idx, rt
@@ -6487,6 +6496,7 @@ SVGParser = {
         after: isNaN(after) ? 0 : after,
         duration: dur,
         restart: c.getAttribute('restart'),
+        calcMode : c.getAttribute('calcMode'),
         additive : additive,
         accumulate : accum,
         repeat : repeat,
@@ -6516,21 +6526,99 @@ SVGParser = {
       var to = this.parseUnit(c.getAttribute('to'), cn, 'x')
       var by = this.parseUnit(c.getAttribute('by'), cn, 'x')
       var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
-      if (to == null) to = from + by
+      if (c.getAttribute('values')) {
+        var self = this
+        var vals = c.getAttribute('values')
+        vals = vals.split(";").map(function(v) {
+          var xy = v.split(/[, ]+/)
+          if (xy.length > 2) {
+            return xy.map(function(x){ return self.parseUnit(x, cn, 'x') })
+          } else if (xy.length > 1) {
+            return [
+              self.parseUnit(xy[0], cn, 'x'),
+              self.parseUnit(xy[1], cn, 'y')
+            ]
+          } else {
+            return self.parseUnit(v, cn, 'x')
+          }
+        })
+      } else {
+        if (to == null) to = from + by
+      }
       cn.after(o.after, function() {
         if (o.fill == 'remove') {
           var orig = Object.clone(this[o.variable])
           this.after(o.duration, function(){ this[o.variable] = orig })
         }
-        if (o.additive) {
-          from += this[o.variable]
-          to += this[o.variable]
+        if (vals) {
+          if (o.additive) {
+            var ov = this[o.variable]
+            vals = vals.map(function(v){
+              return Object.sum(v, ov)
+            })
+          }
+          var length = 0
+          var lens = []
+          if (vals[0] instanceof Array) {
+            for (var i=1; i<vals.length; i++) {
+              var diff = Object.sub(vals[i] - vals[i-1])
+              var sl = Math.sqrt(diff.reduce(function(s, i) { return s + i*i }, 0))
+              lens.push(sl)
+              length += sl
+            }
+          } else {
+            for (var i=1; i<vals.length; i++) {
+              var sl = Math.abs(vals[i] - vals[i-1])
+              lens.push(sl)
+              length += sl
+            }
+          }
+          var animator = function(pos) {
+            if (pos == 1) {
+              this[o.variable] = vals[vals.length-1]
+            } else {
+              if (o.calcMode == 'paced') {
+                var len = pos * length
+                var rlen = 0, idx, rt
+                for (var i=0; i<lens.length; i++) {
+                  if (rlen + lens[i] > len) {
+                    idx = i
+                    rt = (len - rlen) / lens[i]
+                    break
+                  }
+                  rlen += lens[i]
+                }
+                var v0 = idx
+                var v1 = v0 + 1
+              } else {
+                var idx = pos * (vals.length-1)
+                var v0 = Math.floor(idx)
+                var rt = idx - v0
+                var v1 = v0 + 1
+              }
+              this.tweenVariable(o.variable, vals[v0], vals[v1], rt, o.calcMode)
+            }
+          }
+          this.animate(animator, from, to, o.duration, 'linear', {
+            repeat: o.repeat,
+            additive: o.additive,
+            accumulate: o.accumulate
+          })
+        } else {
+          if (from == null) {
+            from = this[o.variable]
+            if (by != null) to = from + by
+          }
+          if (o.additive) {
+            from = Object.sum(from, this[o.variable])
+            to = Object.sum(to, this[o.variable])
+          }
+          this.animate(o.variable, from, to, o.duration, o.calcMode, {
+            repeat: o.repeat,
+            additive: o.additive,
+            accumulate: o.accumulate
+          })
         }
-        this.animate(o.variable, from, to, o.duration, 'linear', {
-          repeat: o.repeat,
-          additive: o.additive,
-          accumulate: o.accumulate
-        })
       })
     },
 
@@ -6548,11 +6636,19 @@ SVGParser = {
 
     animateMotion : function(c,cn) {
       var path
-      if (c.getAttribute('path'))
+      if (c.getAttribute('path')) {
         path = new Path(c.getAttribute('path'))
-      else if (c.getAttribute('values')) {
+      } else if (c.getAttribute('values')) {
         var vals = c.getAttribute('values')
         path = new Path("M" + vals.split(";").join("L"))
+      } else if (c.getAttribute('from') || c.getAttribute('to') || c.getAttribute('by')) {
+        var from = c.getAttribute('from')
+        var to = c.getAttribute('to')
+        var by = c.getAttribute('by')
+        if (!from) from = "0,0"
+        if (!to) to = "l" + by
+        else to = "L" + to
+        path = new Path("M" + from + to)
       }
       var p = new CanvasNode()
       p.__motionPath = path
@@ -6564,7 +6660,10 @@ SVGParser = {
           this.after(o.duration, function(){ this.x = ox; this.y = oy})
         }
         var motion = function(pos) {
-          var pa = p.__motionPath.pointAngleAt(pos)
+          var pa = p.__motionPath.pointAngleAt(pos, {
+            discrete: o.calcMode == 'discrete',
+            linear : o.calcMode == 'linear'
+          })
           this.x = pa.point[0]
           this.y = pa.point[1]
           if (rotate == 'auto') {
