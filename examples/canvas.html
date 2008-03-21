@@ -2825,6 +2825,47 @@
   })
   Effects.add('KeyframeTest')
 
+  KeyboardTest = Klass(Effect, {
+    description: 'Click on a shape to focus it, use the arrow keys to move it around.',
+    
+    initialize : function() {
+      Effect.initialize.apply(this, arguments)
+      var c = new Circle(40, {fill: [40, 220, 90, 0.5]})
+      c.x = 100
+      c.y = 100
+      var r = new Rectangle(80, 80, {fill: [220, 40, 90, 0.5]})
+      r.x = 400
+      r.y = 300
+      var kb_move = function(t,dt) {
+        if (this.focused) {
+          this.fill[3] = 0.75
+          if ( this.root.keys.left )
+            this.x -= 10
+          if ( this.root.keys.right )
+            this.x += 10
+          if (this.root.keys.up )
+            this.y -= 10
+          if (this.root.keys.down )
+            this.y += 10
+        } else {
+          this.fill[3] = 0.5
+        }
+      }
+      c.addFrameListener(kb_move)
+      r.addFrameListener(kb_move)
+      c.when('focus', function(){ this.focused = true })
+      c.when('blur', function(){ this.focused = false})
+      r.when('focus', function(){ this.focused = true })
+      r.when('blur', function(){ this.focused = false})
+      
+      this.scene.when('keydown', function(ev) { ev.preventDefault() })
+      this.scene.when('keypress', function(ev) { ev.preventDefault() })
+      this.scene.when('keyup', function(ev) { ev.preventDefault() })
+      this.scene.append(c,r)
+    }
+  })
+  Effects.add('KeyboardTest')
+
 </script>
 <style type="text/css">
   body {

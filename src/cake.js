@@ -217,7 +217,10 @@ if (!Array.prototype.indexOf) {
   */
 Array.prototype.map = function(f) {
   var na = new Array(this.length)
-  for (var i=0; i<this.length; i++) na[i] = f(this[i], i, this)
+  if (f)
+    for (var i=0; i<this.length; i++) na[i] = f(this[i], i, this)
+  else
+    for (var i=0; i<this.length; i++) na[i] = this[i]
   return na
 }
 Array.prototype.forEach = function(f) {
@@ -3578,6 +3581,13 @@ Canvas = Klass(CanvasNode, {
     
     this.canvas.parentNode.addEventListener('mousedown', function(e) {
       th.mouseDown = true
+      if (th.keyTarget != th.target) {
+        if (th.keyTarget)
+          th.dispatchEvent({type: 'blur', canvasTarget: th.keyTarget})
+        th.keyTarget = th.target
+        if (th.keyTarget)
+          th.dispatchEvent({type: 'focus', canvasTarget: th.keyTarget})
+      }
       this.addMouseEvent(e)
     }, true)
 
@@ -3642,8 +3652,33 @@ Canvas = Klass(CanvasNode, {
     for (var i=0; i<types.length; i++) {
       this.canvas.parentNode.addEventListener(types[i], dispatch, false)
     }
+    this.keys = {}
 
     this.windowEventListeners = {
+
+      keydown : function(ev) {
+        if (th.keyTarget) {
+          th.updateKeys(ev)
+          ev.canvasTarget = th.keyTarget
+          th.dispatchEvent(ev)
+        }
+      },
+
+      keyup : function(ev) {
+        if (th.keyTarget) {
+          th.updateKeys(ev)
+          ev.canvasTarget = th.keyTarget
+          th.dispatchEvent(ev)
+        }
+      },
+
+      // do we even want to have this?
+      keypress : function(ev) {
+        if (th.keyTarget) {
+          ev.canvasTarget = th.keyTarget
+          th.dispatchEvent(ev)
+        }
+      },
       
       blur : function(ev) {
         th.absoluteMouseX = th.absoluteMouseY = null
@@ -3660,6 +3695,8 @@ Canvas = Klass(CanvasNode, {
       mouseup : function(e) {
         th.mouseDown = false
         if (th.dragTarget) {
+          // TODO
+          // find the object that receives the drag (i.e. drop target)
           var nev = document.createEvent('MouseEvents')
           nev.initMouseEvent('dragend', true, true, window, e.detail,
             e.screenX, e.screenY, e.clientX, e.clientY, e.ctrlKey, e.altKey,
@@ -3668,8 +3705,14 @@ Canvas = Klass(CanvasNode, {
           th.dispatchEvent(nev)
           th.dragTarget = false
         }
-        if (!th.canvas.parentNode.contains(e.target))
-          return th.dispatchEvent(e)
+        if (!th.canvas.parentNode.contains(e.target)) {
+          var rv = th.dispatchEvent(e)
+          if (th.keyTarget) {
+            th.dispatchEvent({type: 'blur', canvasTarget: th.keyTarget})
+            th.keyTarget = null
+          }
+          return rv
+        }
       },
 
       mousemove : function(ev) {
@@ -3691,6 +3734,28 @@ Canvas = Klass(CanvasNode, {
     if (this.canvas.parentNode.parentNode) this.addWindowEventListeners()
   },
 
+  updateKeys : function(ev) {
+    this.keys.shift = ev.shiftKey
+    this.keys.ctrl = ev.ctrlKey
+    this.keys.alt = ev.altKey
+    this.keys.meta = ev.metaKey
+    var state = (ev.type == 'keydown')
+    switch (ev.keyCode) {
+      case 37: this.keys.left = state; break
+      case 38: this.keys.up = state; break
+      case 39: this.keys.right = state; break
+      case 40: this.keys.down = state; break
+      case 32: this.keys.space = state; break
+      case 13: this.keys.enter = state; break
+      case 9: this.keys.tab = state; break
+      case 8: this.keys.backspace = state; break
+      case 16: this.keys.shift = state; break
+      case 17: this.keys.ctrl = state; break
+      case 18: this.keys.alt = state; break
+    }
+    this.keys[ev.keyCode] = state
+  },
+  
   addWindowEventListeners : function() {
     for (var i in this.windowEventListeners)
       window.addEventListener(i, this.windowEventListeners[i], false)
@@ -6468,6 +6533,13 @@ SVGParser = {
       cn.root.metadata = c
     },
 
+
+
+
+
+
+
+
     parseAnimateTag : function(c, cn) {
       var after = SVGParser.SVGTagMapping.parseTime(c.getAttribute('begin'))
       var dur = SVGParser.SVGTagMapping.parseTime(c.getAttribute('dur'))
@@ -6520,6 +6592,11 @@ SVGParser = {
         return parseFloat(value) * fac * 1000
       }
     },
+
+
+
+
+
 
     animate : function(c, cn) {
       var from = this.parseUnit(c.getAttribute('from'), cn, 'x')
@@ -6709,30 +6786,76 @@ SVGParser = {
     },
 
     animateTransform : function(c, cn) {
-      var from = this.parseUnit(c.getAttribute('from'), cn, 'x')
-      var to = this.parseUnit(c.getAttribute('to'), cn, 'x')
-      var by = this.parseUnit(c.getAttribute('by'), cn, 'x')
+      var from = c.getAttribute('from')
+      var to = c.getAttribute('to')
+      var by = c.getAttribute('by')
       var o = SVGParser.SVGTagMapping.parseAnimateTag(c, cn)
+      if (from) from = from.split(/[ ,]+/).map(parseFloat)
+      if (to) to = to.split(/[ ,]+/).map(parseFloat)
+      if (by) by = by.split(/[ ,]+/).map(parseFloat)
       o.variable = c.getAttribute('type')
       if (o.variable == 'rotate') {
         o.variable = 'rotation'
-        from *= Math.PI/180
-        to *= Math.PI/180
-      } else if (o.variable == 'scale' && o.additive) {
-        o.additive = false // scale "additive" is actually "multiply", so let's
-                           // just not touch this particular form of madness
+        if (from) from = from.map(function(v) { return v * Math.PI/180 })
+        if (to) to = to.map(function(v) { return v * Math.PI/180 })
+        if (by) by = by.map(function(v) { return v * Math.PI/180 })
+      } else if (o.variable.match(/^skew/)) {
+        if (from) from = from.map(function(v) { return v * Math.PI/180 })
+        if (to) to = to.map(function(v) { return v * Math.PI/180 })
+        if (by) by = by.map(function(v) { return v * Math.PI/180 })
       }
-      if (to == null) to = from + by
+      if (to == null) to = Object.sum(from, by)
       cn.after(o.after, function() {
-        if (o.fill == 'remove') {
-          var orig = Object.clone(this[o.variable])
-          this.after(o.duration, function(){ this[o.variable] = orig })
+        if (o.variable == 'translate') {
+          if (from == null) {
+            from = [this.x, this.y]
+            if (by != null) to = Object.sum(from, by)
+          }
+          if (o.fill == 'remove') {
+            var ox = this.x
+            var oy = this.y
+            this.after(o.duration, function(){ this.x = ox; this.y = oy })
+          }
+          this.animate('x', from[0], to[0], o.duration, 'linear', {
+            repeat: o.repeat,
+            additive: o.additive,
+            accumulate: o.accumulate
+          })
+          if (from[1] != null) {
+            this.animate('y', from[1], to[1], o.duration, 'linear', {
+              repeat: o.repeat,
+              additive: o.additive,
+              accumulate: o.accumulate
+            })
+          }
+        } else {
+          if (from) {
+            if (from.length == 1) from = from[0]
+          }
+          if (to) {
+            if (to.length == 1) to = to[0]
+          }
+          if (by) {
+            if (by.length == 1) by = by[0]
+          }
+          if (from == null) {
+            from = this[o.variable]
+            if (by != null) to = Object.sum(from, by)
+          }
+          if (o.variable == 'scale' && o.additive) {
+            // +1 in SMIL's additive scale means *1, welcome to brokenville
+            o.additive = false
+          }
+          if (o.fill == 'remove') {
+            var orig = Object.clone(this[o.variable])
+            this.after(o.duration, function(){ this[o.variable] = orig })
+          }
+          this.animate(o.variable, from, to, o.duration, 'linear', {
+            repeat: o.repeat,
+            additive: o.additive,
+            accumulate: o.accumulate
+          })
         }
-        this.animate(o.variable, from, to, o.duration, 'linear', {
-          repeat: o.repeat,
-          additive: o.additive,
-          accumulate: o.accumulate
-        })
       })
     },
 
