@@ -2830,6 +2830,7 @@
     
     initialize : function() {
       Effect.initialize.apply(this, arguments)
+      this.canvas.redrawOnlyWhenChanged = true
       var c = new Circle(40, {fill: [40, 220, 90, 0.5]})
       c.x = 100
       c.y = 100
@@ -2838,7 +2839,7 @@
       r.y = 300
       var kb_move = function(t,dt) {
         if (this.focused) {
-          this.fill[3] = 0.75
+          var ox = this.x, oy = this.y
           if ( this.root.keys.left )
             this.x -= 10
           if ( this.root.keys.right )
@@ -2847,16 +2848,20 @@
             this.y -= 10
           if (this.root.keys.down )
             this.y += 10
-        } else {
-          this.fill[3] = 0.5
+          this.changed = this.x != ox || this.y != oy
+        }
+        var nf = this.focused ? 0.75 : 0.5
+        if (nf != this.fill[3]) {
+          this.fill[3] = nf
+          this.changed = true
         }
       }
       c.addFrameListener(kb_move)
       r.addFrameListener(kb_move)
       c.when('focus', function(){ this.focused = true })
-      c.when('blur', function(){ this.focused = false})
+      c.when('blur', function(){ this.focused = false })
       r.when('focus', function(){ this.focused = true })
-      r.when('blur', function(){ this.focused = false})
+      r.when('blur', function(){ this.focused = false })
       
       this.scene.when('keydown', function(ev) { ev.preventDefault() })
       this.scene.when('keypress', function(ev) { ev.preventDefault() })

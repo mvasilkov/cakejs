@@ -2227,6 +2227,7 @@ Timeline = Klass({
           previousFrame = this.keyframes[this.keyframes.length - 1]
           Object.extend(object, Object.clone(previousFrame.target))
           if (this.repeat) this.startTime = ot
+          object.changed = true
         }
       } else if (previousFrame) {
         this.keyframes.atEnd = false
@@ -2343,6 +2344,7 @@ Animatable = Klass({
           this.keyframes.atEnd = true
           previousFrame = this.keyframes[this.keyframes.length - 1]
           Object.extend(this, Object.clone(previousFrame.target))
+          this.changed = true
         }
       } else if (previousFrame) {
         this.keyframes.atEnd = false
@@ -2390,6 +2392,7 @@ Animatable = Klass({
         keyframe.startTime += keyframe.repeatEvery
         this.addTimelineEvent(keyframe)
       }
+      this.changed = true
     }
   },
 
@@ -2453,6 +2456,7 @@ Animatable = Klass({
     } else {
       variable.call(this, tweened, start, end)
     }
+    this.changed = true
   },
     
   animate : function(variable, start, end, duration, tween, config) {
@@ -2787,6 +2791,8 @@ CanvasNode = Klass(Animatable, Transformable, {
 
   cursor : null,
 
+  changed : true,
+
   tagName : 'g',
 
   getNextSibling : function(){
@@ -3069,6 +3075,11 @@ CanvasNode = Klass(Animatable, Transformable, {
     this.willBeDrawn = (!this.parent || this.parent.willBeDrawn) && (this.display ? this.display != 'none' : this.visible)
     for(var i=0; i<this.childNodes.length; i++)
       this.childNodes[i].handleUpdate(time, timeDelta)
+    // TODO propagate dirty area bbox up the scene graph
+    if (this.parent && this.changed) {
+      this.parent.changed = this.changed
+      this.changed = false
+    }
     this.needMatrixUpdate = true
   },
 
