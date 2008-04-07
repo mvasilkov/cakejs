@@ -15,7 +15,7 @@ window.onload = function() {
     strokeWidth: 20,
     endAngle: Math.PI*1.8
   })
-  circle.animateTo('scale', 2, 1000, 'sine', true, true)
+  circle.animateTo('scale', 2, 1000, 'sine')
   circle.addFrameListener(function(t, dt) {
     this.rotation = Math.sin(t / 1000) * Math.PI
   })
@@ -48,8 +48,8 @@ window.onload = function() {
       strokeWidth: 20,
       endAngle: Math.PI*1.8 // Math.PI*2 would be a full circle (default)
     })
-    // Animate scale to 2 in 1000ms. Use a sine tween curve. Repeat and pingpong.
-    circle.animateTo('scale', 2, 1000, 'sine', true, true)
+    // Animate scale to 2 in 1000ms. Use a sine tween curve.
+    circle.animateTo('scale', 2, 1000, 'sine')
     circle.addFrameListener(function(t, dt) { // before every frame, do this
       this.rotation = Math.sin(t / 1000) * Math.PI
     })
