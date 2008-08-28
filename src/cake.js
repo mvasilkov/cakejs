@@ -189,7 +189,7 @@ if (!Function.prototype.bind) {
 if (!Array.prototype.last) {
   /**
     Returns the last element of the array.
-    
+
     @return The last element of the array
     @addon
     */
@@ -363,7 +363,7 @@ if (!Math.cosh) {
 
 /**
   Creates and configures a DOM element.
-  
+
   The tag of the element is given by name.
 
   If params is a string, it is used as the innerHTML of the created element.
@@ -447,7 +447,7 @@ T = function(text) {
 
 /**
   Merges the src object's attributes with the dst object, ignoring errors.
-  
+
   @param dst The destination object
   @param src The source object
   @return The dst object
@@ -466,7 +466,7 @@ if (!Object.extend)
 /**
   Merges the src object's attributes with the dst object, preserving all dst
   object's current attributes.
-  
+
   @param dst The destination object
   @param src The source object
   @return The dst object
@@ -637,7 +637,7 @@ if (Browser == 'IE') {
   Klass is a function that returns a constructor function.
 
   The constructor function calls #initialize with its arguments.
-  
+
   The parameters to Klass have their prototypes or themselves merged with the
   constructor function's prototype.
 
@@ -742,7 +742,7 @@ Curves = {
     var e = b + (c-b)*t
     return d + (e-d)*t
   },
-  
+
   cubicValue : function(a,b,c,d,t) {
     var a3 = a*3, b3 = b*3, c3 = c*3
     return a + t*(b3 - a3 + t*(a3-2*b3+c3 + t*(b3-a-c3+d)))
@@ -772,7 +772,7 @@ Curves = {
     var a = this.catmullRomAngle(a,b,c,d,t)
     return {point:p, angle:a}
   },
-  
+
   lineAngle : function(a,b) {
     return Math.atan2(b[1]-a[1], b[0]-a[0])
   },
@@ -826,7 +826,7 @@ Curves = {
       }
       return [left, right]
     }
-  
+
     var addifclose = function(v, error) {
       var len = 0
       for (var i=0; i < 3; i++) {
@@ -839,7 +839,7 @@ Curves = {
       }
       return len
     }
-  
+
     return function(a,b,c,d, error) {
       if (!error) error = 1
       return addifclose([a,b,c,d], error)
@@ -924,7 +924,7 @@ Colors = {
         r = p + ((q-p)*6*(2/3 - tr))
       else
         r = p
-        
+
       if (tg < 1/6)
         g = p + ((q-p)*6*tg)
       else if (tg < 1/2)
@@ -933,7 +933,7 @@ Colors = {
         g = p + ((q-p)*6*(2/3 - tg))
       else
         g = p
-        
+
       if (tb < 1/6)
         b = p + ((q-p)*6*tb)
       else if (tb < 1/2)
@@ -1082,15 +1082,12 @@ CanvasSupport = {
   isPointInPathMode : null,
   supportsIsPointInPath : null,
 
-  getSupportsWebkitTransform : function() {
-    if (this.supportsWebKitTransform == null) {
-      var ua = window.navigator.userAgent
-      var ver = ua.match(/WebKit\/\d+/)
+  getSupportsCSSTransform : function() {
+    if (this.supportsCSSTransform == null) {
       var s = false
-      if (ver && parseInt(ver[0].split("/")[1]) >= 525) {
-        s = true
-      }
-      this.supportsWebKitTransform = s
+      var dbs = document.body.style
+      s = (dbs.webkitTransform || dbs.MozTransform)
+      this.supportsCSSTransform = s
     }
     return this.supportsWebKitTransform
   },
@@ -1341,8 +1338,8 @@ CanvasSupport = {
     this.tMatrixMultiply(u,i_s)
     return [u, [s1,0,0,s2,0,0], [v00, v10, v01, v11, 0, 0]]
   },
-    
-  
+
+
   svdTransform : (function(){
     //   Copyright (c) 2004-2005, The Dojo Foundation
     //   All Rights Reserved
@@ -1387,7 +1384,7 @@ CanvasSupport = {
     }
     m.multiply = function(matrix){
       // summary: combines matrices by multiplying them sequentially in the given order
-      // matrix: dojox.gfx.matrix.Matrix2D...: a 2D matrix-like object, 
+      // matrix: dojox.gfx.matrix.Matrix2D...: a 2D matrix-like object,
       //    all subsequent arguments are matrix-like objects too
       var M = m.normalize(matrix);
       // combine matrices
@@ -1407,9 +1404,9 @@ CanvasSupport = {
       var M = m.normalize(matrix),
         D = M.xx * M.yy - M.xy * M.yx,
         M = new m.Matrix2D({
-          xx: M.yy/D, xy: -M.xy/D, 
-          yx: -M.yx/D, yy: M.xx/D, 
-          dx: (M.xy * M.dy - M.yy * M.dx) / D, 
+          xx: M.yy/D, xy: -M.xy/D,
+          yx: -M.yx/D, yy: M.xx/D,
+          dx: (M.xy * M.dy - M.yy * M.dx) / D,
           dy: (M.yx * M.dx - M.xx * M.dy) / D
         });
       return M; // dojox.gfx.matrix.Matrix2D
@@ -1421,7 +1418,7 @@ CanvasSupport = {
       // summary: compare two FP numbers for equality
       return Math.abs(a - b) <= 1e-6 * (Math.abs(a) + Math.abs(b)); // Boolean
     };
-    
+
     var calcFromValues = function(/* Number */ s1, /* Number */ s2){
       // summary: uses two close FP values to approximate the result
       if(!isFinite(s1)){
@@ -1431,17 +1428,17 @@ CanvasSupport = {
       }
       return (s1 + s2) / 2; // Number
     };
-    
+
     var transpose = function(/* dojox.gfx.matrix.Matrix2D */ matrix){
       // matrix: dojox.gfx.matrix.Matrix2D: a 2D matrix-like object
       var M = new m.Matrix2D(matrix);
       return Object.extend(M, {dx: 0, dy: 0, xy: M.yx, yx: M.xy}); // dojox.gfx.matrix.Matrix2D
     };
-    
+
     var scaleSign = function(/* dojox.gfx.matrix.Matrix2D */ matrix){
       return (matrix.xx * matrix.yy < 0 || matrix.xy * matrix.yx > 0) ? -1 : 1; // Number
     };
-    
+
     var eigenvalueDecomposition = function(/* dojox.gfx.matrix.Matrix2D */ matrix){
       // matrix: dojox.gfx.matrix.Matrix2D: a 2D matrix-like object
       var M = m.normalize(matrix),
@@ -1486,7 +1483,7 @@ CanvasSupport = {
         vector2: {x: vx2, y: vy2}
       };
     };
-    
+
     var decomposeSR = function(/* dojox.gfx.matrix.Matrix2D */ M, /* Object */ result){
       // summary: decomposes a matrix into [scale, rotate]; no checks are done.
       var sign = scaleSign(M),
@@ -1496,7 +1493,7 @@ CanvasSupport = {
       result.sy = calcFromValues(M.yy / cos, M.yx / sin);
       return result;  // Object
     };
-    
+
     var decomposeRS = function(/* dojox.gfx.matrix.Matrix2D */ M, /* Object */ result){
       // summary: decomposes a matrix into [rotate, scale]; no checks are done
       var sign = scaleSign(M),
@@ -1506,15 +1503,15 @@ CanvasSupport = {
       result.sy = calcFromValues(M.yy / cos, -M.xy / sin);
       return result;  // Object
     };
-    
+
     return function(matrix){
       // summary: decompose a 2D matrix into translation, scaling, and rotation components
-      // description: this function decompose a matrix into four logical components: 
+      // description: this function decompose a matrix into four logical components:
       //  translation, rotation, scaling, and one more rotation using SVD.
       //  The components should be applied in following order:
       //  | [translate, rotate(angle2), scale, rotate(angle1)]
       // matrix: dojox.gfx.matrix.Matrix2D: a 2D matrix-like object
-      var M = m.normalize(matrix), 
+      var M = m.normalize(matrix),
         result = {dx: M.dx, dy: M.dy, sx: 1, sy: 1, angle1: 0, angle2: 0};
       // detect case: [scale]
       if(eq(M.xy, 0) && eq(M.yx, 0)){
@@ -1631,14 +1628,14 @@ CanvasSupport = {
   tSkewXMatrix : function(angle) {
     return [ 1, 0, Math.tan(angle), 1, 0, 0 ]
   },
-  
+
   /**
     Returns a 3x2 2D column-major y-skew matrix for the angle.
     */
   tSkewYMatrix : function(angle) {
     return [ 1, Math.tan(angle), 0, 1, 0, 0 ]
   },
-    
+
   /**
     Returns a 3x2 2D column-major rotation matrix for the angle.
     */
@@ -1706,11 +1703,14 @@ CanvasSupport = {
       var support = ctx.putImageData
       if (support) {
         try {
-          // Let's try it out. Should work, right? Right, Firefox 2 Linux?
-          ctx.putImageData({width: 1, height: 1, data: [255, 0, 255, 255]}, 0, 0)
           var idata = ctx.getImageData(0,0,1,1)
-          if (![255, 0, 255, 255].equals(idata.data))
-            support = false
+          idata[0] = 255
+          idata[1] = 0
+          idata[2] = 255
+          idata[3] = 255
+          ctx.putImageData({width: 1, height: 1, data: idata}, 0, 0)
+          var idata = ctx.getImageData(0,0,1,1)
+          support = [255, 0, 255, 255].equals(idata.data)
         } catch(e) {
           support = false
         }
@@ -1745,7 +1745,7 @@ CanvasSupport = {
       this.isPointInPathMode = this.detectIsPointInPathMode()
     return this.isPointInPathMode
   },
-  
+
   /**
     Detects the coordinate system in which the isPointInPath of the
     browser operates. Possible coordinate systems are
@@ -1828,7 +1828,7 @@ RecordingContext = Klass({
     this.commands = commands || []
     Object.conditionalExtend(this, this.getMockContext())
   },
-  
+
   getMockContext : function() {
     if (!RecordingContext.MockContext) {
       var c = E.canvas(1,1)
@@ -1943,7 +1943,7 @@ RecordingContext.play = function(ctx, commands) {
 
 Transformable = Klass({
   needMatrixUpdate : true,
-  
+
   /**
     Transforms the context state according to this node's attributes.
 
@@ -2091,7 +2091,7 @@ Transformable = Klass({
     else
       CanvasSupport.tSkewY(this.currentMatrix, skewY)
   },
-  
+
   __scaleMatrix : function(scale) {
     if (scale.length == 2) {
       if (scale[0] == 1 && scale[1] == 1) return
@@ -2158,7 +2158,7 @@ Transformable = Klass({
     else
       CanvasSupport.skewY(ctx, skewY)
   },
-  
+
   __scale : function(ctx, scale) {
     if (scale.length == 2) {
       ctx.scale(scale[0], scale[1])
@@ -2251,7 +2251,7 @@ Timeline = Klass({
       }
     }
   }
-  
+
 })
 
 
@@ -2464,7 +2464,7 @@ Animatable = Klass({
     }
     this.changed = true
   },
-    
+
   animate : function(variable, start, end, duration, tween, config) {
     var start = Object.clone(start)
     var end = Object.clone(end)
@@ -2504,7 +2504,7 @@ Animatable = Klass({
   animateFrom : function(variableName, start, duration, tween, config) {
     return this.animate(variableName, start, this[variableName], duration, tween, config)
   },
-  
+
   animateFactor : function(variableName, start, endFactor, duration, tween, config) {
     var end
     if (start instanceof Array) {
@@ -2540,7 +2540,7 @@ Animatable = Klass({
     }
     this.pendingKeyframes.push(kf)
   },
-  
+
   every : function(duration, action, noFirst) {
     var kf = {
       action : action,
@@ -2870,7 +2870,7 @@ CanvasNode = Klass(Animatable, Transformable, {
 
   /**
     Alias for append().
-    
+
     @param Node[s] to append
     */
   appendChild : function() {
@@ -2902,10 +2902,10 @@ CanvasNode = Klass(Animatable, Transformable, {
   removeAllChildren : function() {
     this.remove.apply(this, this.childNodes)
   },
-  
+
   /**
     Alias for remove().
-    
+
     @param Node[s] to remove
     */
   removeChild : function() {
@@ -2917,7 +2917,7 @@ CanvasNode = Klass(Animatable, Transformable, {
 
     Removing a child sets its parent to null and calls
     child.setRoot(null)
-    
+
     @param Child node[s] to remove
     */
   remove : function(obj) {
@@ -2999,7 +2999,7 @@ CanvasNode = Klass(Animatable, Transformable, {
   when : function(type, listener, capture) {
     this.addEventListener(type, listener, capture || false)
   },
-      
+
   removeEventListener : function(type, listener, capture) {
     if (!this.eventListeners[type]) return
     this.eventListeners[type][capture ? 'capture' : 'bubble'].deleteFirst(listener)
@@ -3125,7 +3125,7 @@ CanvasNode = Klass(Animatable, Transformable, {
     This method should be touched only if you know what you're doing.
     Overwrite {@link CanvasNode#drawPickingPath} to change the way the node's
     picking path is created.
-    
+
     Called after handleUpdate, but before handleDraw.
 
     @param ctx Canvas 2D context
@@ -3484,7 +3484,7 @@ CanvasNode = Klass(Animatable, Transformable, {
     var canvasImage = new ImageNode(canvas.canvas, {x: 250, y: 250})
     topCanvas.append(canvasImage)
     canvasImage.addFrameListener(function(t) {
-      this.rotation = (t / 3000 % 1) * Math.PI * 2 
+      this.rotation = (t / 3000 % 1) * Math.PI * 2
       canvas.onFrame(t)
     })
 
@@ -3531,7 +3531,7 @@ Canvas = Klass(CanvasNode, {
       #=> 50
       canvas.mouseX
       #=> 50
-      
+
       canvas.style.width = '200px'
       canvas.width
       #=> 100
@@ -3597,7 +3597,7 @@ Canvas = Klass(CanvasNode, {
       th.addMouseEvent(th.mouseX, th.mouseY, th.mouseDown)
     }
     this.canvas.parentNode.contains = this.contains
-    
+
     this.canvas.parentNode.addEventListener('mousedown', function(e) {
       th.mouseDown = true
       if (th.keyTarget != th.target) {
@@ -3698,7 +3698,7 @@ Canvas = Klass(CanvasNode, {
           th.dispatchEvent(ev)
         }
       },
-      
+
       blur : function(ev) {
         th.absoluteMouseX = th.absoluteMouseY = null
         if (th.playOnlyWhenFocused && th.isPlaying) {
@@ -3706,11 +3706,11 @@ Canvas = Klass(CanvasNode, {
           th.__blurStop = true
         }
       },
-      
+
       focus : function(ev) {
         if (th.__blurStop && !th.isPlaying) th.play()
       },
-      
+
       mouseup : function(e) {
         th.mouseDown = false
         if (th.dragTarget) {
@@ -3741,7 +3741,7 @@ Canvas = Klass(CanvasNode, {
       }
 
     }
-    
+
     this.canvas.parentNode.addEventListener('DOMNodeRemoved', function(ev) {
       if (ev.target == this)
         th.removeWindowEventListeners()
@@ -3774,7 +3774,7 @@ Canvas = Klass(CanvasNode, {
     }
     this.keys[ev.keyCode] = state
   },
-  
+
   addWindowEventListeners : function() {
     for (var i in this.windowEventListeners)
       window.addEventListener(i, this.windowEventListeners[i], false)
@@ -3993,7 +3993,7 @@ Canvas = Klass(CanvasNode, {
 
   /**
     Canvas drawPickingPath uses the canvas rectangle as its path.
-    
+
     @param ctx Canvas drawing context
     */
   drawPickingPath : function(ctx) {
@@ -4045,7 +4045,7 @@ LinkNode = Klass(CanvasNode, {
   href : null,
   target : '_self',
   cursor : 'pointer',
-  
+
   initialize : function(href, target, config) {
     this.href = href
     if (target)
@@ -4197,7 +4197,7 @@ AudioNode = Klass(CanvasNode, {
     this.sound.stop()
     this.root.dispatchEvent({type: 'stop', canvasTarget: this})
   },
-  
+
   _pauseSound : function() {
     this.sound.pause()
     this.root.dispatchEvent({type: this.paused ? 'pause' : 'play', canvasTarget: this})
@@ -4247,6 +4247,7 @@ ElementNode = Klass(CanvasNode, {
     CanvasNode.initialize.call(this, config)
     this.content = content
     this.element = E('div', content)
+    this.element.style.MozTransformOrigin =
     this.element.style.webkitTransformOrigin = '0,0'
     this.element.style.position = 'absolute'
   },
@@ -4260,7 +4261,7 @@ ElementNode = Klass(CanvasNode, {
     c.element.style.webkitTransformOrigin = '0,0'
     return c
   },
-  
+
   setRoot : function(root) {
     CanvasNode.setRoot.call(this, root)
     if (this.element && this.element.parentNode && this.element.parentNode.removeChild)
@@ -4315,7 +4316,7 @@ ElementNode = Klass(CanvasNode, {
     if (ctx.fontFamily != null)
       this.element.style.fontFamily = ctx.fontFamily
 
-    var wkt = CanvasSupport.getSupportsWebkitTransform()
+    var wkt = CanvasSupport.getSupportsCSSTransform()
     if (wkt && !this.noScaling) {
       var emt
       var fc = this.element.firstChild
@@ -4325,8 +4326,10 @@ ElementNode = Klass(CanvasNode, {
         var mt = parseFloat(emt)
         fc.style.marginTop = ys*mt + (emt.match(/[^\d]+$/) || '')
       }
+      this.element.style.MozTransform =
       this.element.style.webkitTransform = 'matrix('+baseTransform.join(",")+')'
     } else {
+      this.element.style.MozTransform =
       this.element.style.webkitTransform = ''
     }
     if (ctx.fontSize != null) {
@@ -4413,7 +4416,7 @@ Drawable = Klass(CanvasNode, {
   // | 'above'  // draw stroke after the fill
   // | 'below'  // draw stroke before the fill
   strokeMode : 'above',
-  
+
   ABOVE : 'above', BELOW : 'below', INSIDE : 'inside',
 
   initialize : function(config) {
@@ -4543,7 +4546,7 @@ Drawable = Klass(CanvasNode, {
     this.drawMarkers(ctx)
     if (this.clip) ctx.clip()
   },
-  
+
   doFill : function(ctx, ft) {
     if (ft || (this.getBoundingBox && ctx.fillStyle.units == this.OBJECTBOUNDINGBOX)) {
       ctx.save()
@@ -4689,7 +4692,7 @@ Line = Klass(Drawable, {
   x2 : 0,
   y2 : 0,
   stroke : true,
-  
+
   initialize : function(x1,y1, x2,y2, config) {
     this.x1 = x1
     this.y1 = y1
@@ -4853,7 +4856,7 @@ Spiral = Klass(Drawable, {
   startRadius : 0,
   startAngle : 0,
   endAngle : 0,
-  
+
   radiusFunction : function(a) {
     return a
   },
@@ -5406,7 +5409,7 @@ Path = Klass(Drawable, {
     }
     return verts
   },
-  
+
   getSegments : function() {
     if (typeof(this.segments) == 'string') {
       if (!this.compiled || this.segments != this.compiledSegments) {
@@ -5662,7 +5665,7 @@ Path = Klass(Drawable, {
     if (sweep == large) sfactor = -sfactor
     var xc = 0.5 * (x0 + x1) - sfactor * (y1-y0)
     var yc = 0.5 * (y0 + y1) + sfactor * (x1-x0)
-    
+
     var th0 = Math.atan2(y0-yc, x0-xc)
     var th1 = Math.atan2(y1-yc, x1-xc)
 
@@ -5803,7 +5806,7 @@ Path = Klass(Drawable, {
   the drawn image.
 
   Attributes:
-  
+
     centered - If true, image center is at the origin.
                Otherwise image top-left is at the origin.
     usePattern - Use a pattern fill for drawing the image (instead of
@@ -5814,7 +5817,7 @@ Path = Klass(Drawable, {
     dWidth, dHeight - Size of the drawn image. Optional.
 
   Example:
-  
+
     var img = new Image()
     img.src = 'foo.jpg'
     var imageGeo = new ImageNode(img)
@@ -5964,7 +5967,7 @@ ImageNode = Klass(Drawable, {
   TextNode is used for drawing text on a canvas.
 
   Attributes:
-  
+
     text - The text string to draw.
     asPath - If true, creates a text path instead of drawing the text.
     align - Horizontal alignment for the text. 'left', 'right' or 'center'
@@ -7483,7 +7486,7 @@ SVGParser = {
     },
 
     __parseStyle : function(v, currentStyle, defs, currentColor) {
-      
+
       if (v.charAt(0) == '#') {
         if (v.length == 4)
           v = v.replace(/([^#])/g, '$1$1')
@@ -7501,7 +7504,7 @@ SVGParser = {
             a[i] = parseInt(c)
         }
         return a
-      
+
       } else if (v.search(/^rgba\(/) != -1) {
         var a = v.slice(5,-1).split(",")
         for (var i=0; i<3; i++) {
