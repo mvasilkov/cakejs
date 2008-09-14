@@ -3498,6 +3498,7 @@ Canvas = Klass(CanvasNode, {
   frame : 0,
   elapsed : 0,
   frameDuration : 30,
+  speed : 1.0,
   time : 0,
   fps : 0,
   currentRealFps : 0,
@@ -3868,9 +3869,9 @@ Canvas = Klass(CanvasNode, {
       var realTime = new Date().getTime()
       this.currentRealElapsed = (realTime - this.realTime)
       this.currentRealFps = 1000 / this.currentRealElapsed
-      var dt = this.frameDuration
+      var dt = this.frameDuration * this.speed
       if (!this.fixedTimestep)
-        dt = this.currentRealElapsed
+        dt = this.currentRealElapsed * this.speed
       this.realTime = realTime
       if (time != null) {
         this.time = time
