@@ -5438,7 +5438,7 @@ Path = Klass(Drawable, {
     for (var i=0; i<segs.length; i++) {
       var seg = segs[i]
       var cmd = seg.match(/[a-z]/i)
-      if (!cmd) continue;
+      if (!cmd) return [];
       cmd = cmd[0];
       var coords = seg.match(/[+-]?\d+(\.\d+(e\d+(\.\d+)?)?)?/gi)
       if (coords) coords = coords.map(parseFloat)
