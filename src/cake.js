@@ -6203,7 +6203,7 @@ Gradient = Klass({
       } else {
         var ca = cs[1]
         var a = (ca.length == 3) ? 1 : ca[3]
-        var g = 'rgba('+ca.slice(0,3).join(",")+', '+a+')'
+        var g = 'rgba('+ca.slice(0,3).map(Math.round).join(",")+', '+a+')'
         go.addColorStop(cs[0], g)
       }
     }
