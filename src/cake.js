@@ -4381,8 +4381,8 @@ ElementNode = Klass(CanvasNode, {
       this.eWidth = xs
       this.eHeight = ys
     } else {
-      this.element.style.width = 'default'
-      this.element.style.height = 'default'
+      this.element.style.width = ''
+      this.element.style.height = ''
       var align = this.align || this.textAnchor
       if (align == 'center' || align == 'middle') {
         x -= this.element.offsetWidth / 2
