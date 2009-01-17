@@ -4376,8 +4376,8 @@ ElementNode = Klass(CanvasNode, {
       this.element.style.color = 'rgb(' + fs.slice(0,3).map(Math.floor).join(",") + ')'
     }
     if (bb) {
-      this.element.style.width = xs * bb[2] + 'px'
-      this.element.style.height = ys * bb[3] + 'px'
+      this.element.style.width = Math.floor(xs * bb[2]) + 'px'
+      this.element.style.height = Math.floor(ys * bb[3]) + 'px'
       this.eWidth = xs
       this.eHeight = ys
     } else {
@@ -4398,8 +4398,8 @@ ElementNode = Klass(CanvasNode, {
       this.eWidth = this.element.offsetWidth / xs
       this.eHeight = this.element.offsetHeight / ys
     }
-    this.element.style.left = x + 'px'
-    this.element.style.top = y + 'px'
+    this.element.style.left = Math.floor(x) + 'px'
+    this.element.style.top = Math.floor(y) + 'px'
     if (hidden)
       this.element.style.visibility = 'visible'
   }
