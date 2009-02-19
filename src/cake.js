@@ -3662,11 +3662,11 @@ Canvas = Klass(CanvasNode, {
 
     var dispatch = this.dispatchEvent.bind(this)
     var types = [
-      'mousemove', 'mouseover', 'mouseout', 'mousewheel',
+      'mousemove', 'mouseover', 'mouseout',
       'click', 'dblclick',
       'mousedown', 'mouseup',
       'keypress', 'keydown', 'keyup',
-      'mousemultiwheel', 'textInput',
+      'DOMMouseScroll', 'mousewheel', 'mousemultiwheel', 'textInput',
       'focus', 'blur'
     ]
     for (var i=0; i<types.length; i++) {
