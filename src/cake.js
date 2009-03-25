@@ -1203,7 +1203,10 @@ CanvasSupport = {
     setShadowBlur : function(x) { this.shadowBlur = x },
     setShadowOffsetX : function(x) { this.shadowOffsetX = x },
     setShadowOffsetY : function(x) { this.shadowOffsetY = x },
-    setMozTextStyle : function(x) { this.mozTextStyle = x }
+    setMozTextStyle : function(x) { this.mozTextStyle = x },
+    setFont : function(x) { this.font = x },
+    setTextAlign : function(x) { this.textAlign = x },
+    setTextBaseline : function(x) { this.textBaseline = x }
   },
 
   ContextJSImplAugment : {
@@ -1689,7 +1692,9 @@ CanvasSupport = {
     */
   detectTextBackend : function() {
     var ctx = this.getTestContext()
-    if (ctx.mozDrawText) {
+    if (ctx.fillText) {
+      return 'HTML5'
+    } else if (ctx.mozDrawText) {
       return 'MozText'
     } else if (ctx.drawString) {
       return 'DrawString'
@@ -2766,9 +2771,6 @@ CanvasNode = Klass(Animatable, Transformable, {
   //   'destination-out' )
   compositeOperation : null,
 
-  // CSS style for the text (this is volatile, there is no canvas text spec)
-  textStyle : null,
-
   // Color for the drop shadow
   shadowColor : null,
 
@@ -2781,19 +2783,14 @@ CanvasNode = Klass(Animatable, Transformable, {
   // Drop shadow's y-offset
   shadowOffsetY : null,
 
-  // Used by Firefox MozDrawText canvas extension for setting the text style.
-  // CSS font style
-  mozTextStyle : null,
-
-  // Perfect world text API
-  // CSS font style
-  textStyle : null,
+  // HTML5 text API
+  font : null,
   // horizontal position of the text origin
-  // 'left' | 'center' | 'right'
+  // 'left' | 'center' | 'right' | 'start' | 'end'
   textAlign : null,
   // vertical position of the text origin
-  // 'top' | 'baseline' | 'bottom'
-  textVAlign : null,
+  // 'top' | 'hanging' | 'middle' | 'alphabetic' | 'ideographic' | 'bottom'
+  textBaseline : null,
 
   cursor : null,
 
@@ -3331,8 +3328,12 @@ CanvasNode = Klass(Animatable, Transformable, {
       ctx.setShadowOffsetY( this.shadowOffsetY )
 
     // text modifiers
-    if (this.textStyle != null)
-      ctx.setMozTextStyle( this.textStyle )
+    if (this.textAlign != null)
+      ctx.setTextAlign( this.textAlign )
+    if (this.textBaseline != null)
+      ctx.setTextBaseline( this.textBaseline )
+    if (this.font != null)
+      ctx.setFont( this.font )
   },
 
   /**
@@ -5964,16 +5965,16 @@ ImageNode = Klass(Drawable, {
 
 
 /**
-  WARNING: The WhatWG standard says nothing about drawing text.
-           All the following code is very much subject to change.
-
   TextNode is used for drawing text on a canvas.
 
   Attributes:
 
     text - The text string to draw.
+    align - Horizontal alignment for the text.
+            'left', 'right', 'center', 'start' or 'end'
+    baseline - Baseline used for the text.
+               'top', 'hanging', 'middle', 'alphabetic', 'ideographic' or 'bottom'
     asPath - If true, creates a text path instead of drawing the text.
-    align - Horizontal alignment for the text. 'left', 'right' or 'center'
     pathGeometry - A geometry object the path of which the text follows.
 
   Example:
@@ -5985,10 +5986,13 @@ ImageNode = Klass(Drawable, {
   */
 TextNode = Klass(Drawable, {
   text : 'Text',
-  asPath : false,
-  align : 'left', // 'left' | 'right' | 'center'
+  align : 'start', // 'left' | 'right' | 'center' | 'start' | 'end'
+  baseline : 'alphabetic', // 'top' | 'hanging' | 'middle' | 'alphabetic' |
+                           // 'ideographic' | 'bottom'
   accuratePicking : false,
+  asPath : false,
   pathGeometry : null,
+  maxWidth : null,
   width : 0,
   height : 20,
   cx : 0,
@@ -6014,10 +6018,10 @@ TextNode = Klass(Drawable, {
   drawUsing : function(ctx, methodName) {
     if (!this.text || this.text.length == 0)
       return
-    if (this.lastText != this.text || this.lastStyle != ctx.textStyle) {
+    if (this.lastText != this.text || this.lastStyle != ctx.font) {
       this.dimensions = this.measureText(ctx)
       this.lastText = this.text
-      this.lastStyle = ctx.textStyle
+      this.lastStyle = ctx.font
     }
     if (this[methodName])
       this[methodName](ctx)
@@ -6039,6 +6043,21 @@ TextNode = Klass(Drawable, {
       return -this.dimensions.width
     else if (this.align == 'center')
       return  -this.dimensions.width * 0.5
+  },
+
+  measureTextHTML5 : function(ctx) {
+    // FIXME measureText is retarded
+    return {width: ctx.measureText(this.text).width, height: 20}
+  },
+
+  drawHTML5 : function(ctx) {
+    ctx.fillText(this.text, this.cx, this.cy, this.maxWidth)
+  },
+
+  drawPickingPathHTML5 : function(ctx) {
+    var ascender = 15 // this.dimensions.ascender
+    var ry = this.cy - ascender
+    ctx.rect(this.cx, ry, this.dimensions.width, this.dimensions.height)
   },
 
   measureTextMozText : function(ctx) {
