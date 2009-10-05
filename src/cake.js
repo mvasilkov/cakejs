@@ -44,6 +44,22 @@ Array.prototype.deleteFirst = function(obj) {
   return false
 }
 
+Array.prototype.stableSort = function(cmp) {
+  // hack to work around Chrome's qsort
+  for(var i=0; i<this.length; i++) {
+    this[i].__arrayPos = i;
+  }
+  return this.sort(Array.__stableSorter(cmp));
+}
+Array.__stableSorter = function(cmp) {
+  return (function(c1, c2) {
+    var r = cmp(c1,c2);
+    if (!r) { // hack to work around Chrome's qsort
+      return c1.__arrayPos - c2.__arrayPos
+    }
+    return r;
+  });
+}
 
 /**
   Compares two arrays for equality. Returns true if the arrays are equal.
@@ -210,6 +226,19 @@ if (!Array.prototype.indexOf) {
     for (var i=0; i<this.length; i++)
       if (obj == this[i]) return i
     return -1
+  }
+}
+if (!Array.prototype.includes) {
+  /**
+    Returns true if obj is in the array.
+    Returns false if it isn't.
+
+    @param obj The object to find from the array.
+    @return True if obj is in the array, false if it isn't
+    @addon
+    */
+  Array.prototype.includes = function(obj) {
+    return (this.indexOf(obj) >= 0);
   }
 }
 /**
@@ -1081,15 +1110,26 @@ CanvasSupport = {
   USER_SPACE : 1,   // Fx2, Fx3
   isPointInPathMode : null,
   supportsIsPointInPath : null,
+  supportsCSSTransform : null,
+  supportsCanvas : null,
 
-  getSupportsCSSTransform : function() {
-    if (this.supportsCSSTransform == null) {
-      var s = false
-      var dbs = document.body.style
-      s = (dbs.webkitTransform || dbs.MozTransform)
-      this.supportsCSSTransform = s
+  isCanvasSupported : function() {
+    if (this.supportsCanvas == null) {
+      var e = {};
+      try { e = E('canvas'); } catch(x) {}
+      this.supportsCanvas = (e.getContext != null);
     }
-    return this.supportsWebKitTransform
+    return this.supportsCanvas;
+  },
+
+  isCSSTransformSupported : function() {
+    if (this.supportsCSSTransform == null) {
+      var e = E('div')
+      var dbs = e.style
+      var s = (dbs.webkitTransform != null || dbs.MozTransform != null)
+      this.supportsCSSTransform = (s != null)
+    }
+    return this.supportsCSSTransform
   },
 
   getTestContext : function() {
@@ -1990,20 +2030,7 @@ Transformable = Klass({
     if (!ctx) return
 
     // transform matrix modifiers
-    if (atm) this.__setMatrix(ctx, this.absoluteMatrix)
-    if (xy) this.__translate(ctx, this.x, this.y)
-    if (rot) this.__rotate(ctx, this.rotation)
-    if (skX) this.__skewX(ctx, this.skewX)
-    if (skY) this.__skewY(ctx, this.skewY)
-    if (sca) this.__scale(ctx, this.scale)
-    if (tm) this.__matrix(ctx, this.matrix)
-
-    if (tl) {
-      for (var i=0; i<this.transformList.length; i++) {
-        var tl = this.transformList[i]
-        this['__'+tl[0]](ctx, tl[1])
-      }
-    }
+    this.__setMatrix(ctx, this.currentMatrix)
   },
 
   distanceTo : function(node) {
@@ -2201,6 +2228,7 @@ Transformable = Klass({
 Timeline = Klass({
   startTime : null,
   repeat : false,
+  lastAction : 0,
 
   initialize : function(repeat, pingpong) {
     this.repeat = repeat
@@ -2214,6 +2242,11 @@ Timeline = Klass({
             target : target,
             tween : tween
           })
+  },
+
+  appendKeyframe : function(timeDelta, target, tween) {
+    this.lastAction += timeDelta
+    return this.addKeyframe(this.lastAction, target, tween)
   },
 
   evaluate : function(object, ot, dt) {
@@ -2292,6 +2325,7 @@ Animatable = Klass({
   },
 
   initialize : function() {
+    this.lastAction = 0
     this.timeline = []
     this.keyframes = []
     this.pendingKeyframes = []
@@ -2328,15 +2362,7 @@ Animatable = Klass({
     a single animator, chaining and reordering keyframes is very easy.
     */
   updateKeyframes : function(t,dt) {
-    if (this.pendingKeyframes.length > 0) {
-      while (this.pendingKeyframes.length > 0) {
-        var kf = this.pendingKeyframes.pop()
-        if (kf.time == null)
-          kf.time = kf.relativeTime + t
-        this.keyframes.push(kf)
-      }
-      this.keyframes.sort(function(a,b) { return a.time - b.time })
-    }
+    this.addPendingKeyframes(t)
     if (this.keyframes.length > 0) {
       // find current keyframe
       var currentIndex, previousFrame, currentFrame
@@ -2374,20 +2400,24 @@ Animatable = Klass({
     }
   },
 
+  addPendingKeyframes : function(t) {
+    if (this.pendingKeyframes.length > 0) {
+      while (this.pendingKeyframes.length > 0) {
+        var kf = this.pendingKeyframes.shift()
+        if (kf.time == null)
+          kf.time = kf.relativeTime + t
+        this.keyframes.push(kf)
+      }
+      this.keyframes.stableSort(function(a,b) { return a.time - b.time })
+    }
+  },
+
   /**
     Run and remove timelineEvents that have startTime <= t.
     TimelineEvents are run in the ascending order of their startTimes.
     */
   updateTimeline : function(t, dt) {
-    if (this.pendingTimelineEvents.length > 0) {
-      while (this.pendingTimelineEvents.length > 0) {
-        var kf = this.pendingTimelineEvents.pop()
-        if (!kf.startTime)
-          kf.startTime = kf.relativeStartTime + t
-        this.timeline.push(kf)
-      }
-      this.timeline.sort(function(a,b) { return a.startTime - b.startTime })
-    }
+    this.addPendingTimelineEvents(t)
     while (this.timeline[0] && this.timeline[0].startTime <= t) {
       var keyframe = this.timeline.shift()
       var rv = true
@@ -2404,6 +2434,18 @@ Animatable = Klass({
         this.addTimelineEvent(keyframe)
       }
       this.changed = true
+    }
+  },
+
+  addPendingTimelineEvents : function(t) {
+    if (this.pendingTimelineEvents.length > 0) {
+      while (this.pendingTimelineEvents.length > 0) {
+        var kf = this.pendingTimelineEvents.shift()
+        if (!kf.startTime)
+          kf.startTime = kf.relativeStartTime + t
+        this.timeline.push(kf)
+      }
+      this.timeline.stableSort(function(a,b) { return a.startTime - b.startTime })
     }
   },
 
@@ -2544,6 +2586,11 @@ Animatable = Klass({
       tween: tween
     }
     this.pendingKeyframes.push(kf)
+  },
+
+  appendKeyframe : function(timeDelta, target, tween) {
+    this.lastAction += timeDelta
+    return this.addKeyframe(this.lastAction, target, tween)
   },
 
   every : function(duration, action, noFirst) {
@@ -3101,7 +3148,8 @@ CanvasNode = Klass(Animatable, Transformable, {
     // need to operate on a copy, otherwise bad stuff happens
     var fl = this.frameListeners.slice(0)
     for(var i=0; i<fl.length; i++) {
-      fl[i].apply(this, arguments)
+      if (this.frameListeners.includes(fl[i]))
+        fl[i].apply(this, arguments)
     }
   },
 
@@ -3155,7 +3203,7 @@ CanvasNode = Klass(Animatable, Transformable, {
         this.underCursor = false
       }
       var c = this.__getChildrenCopy()
-      c.sort(this.__zIndexSort)
+      this.__zSort(c)
       for(var i=0; i<c.length; i++) {
         c[i].handlePick(ctx)
         if (!this.underCursor)
@@ -3174,8 +3222,8 @@ CanvasNode = Klass(Animatable, Transformable, {
     }
   },
 
-  __zIndexSort : function(c1,c2){
-    return c1.zIndex - c2.zIndex
+  __zSort : function(c) {
+    c.stableSort(function(c1,c2) { return c1.zIndex - c2.zIndex; });
   },
 
   __getChildrenCopy : function() {
@@ -3257,7 +3305,7 @@ CanvasNode = Klass(Animatable, Transformable, {
     if (this.drawable && this.draw)
       this.draw(ctx)
     var c = this.__getChildrenCopy()
-    c.sort(this.__zIndexSort)
+    this.__zSort(c);
     for(var i=0; i<c.length; i++) {
       c[i].handleDraw(ctx)
     }
@@ -3409,8 +3457,23 @@ CanvasNode = Klass(Animatable, Transformable, {
     var y1 = Math.min(xy1[1], xy2[1], xy3[1], xy4[1])
     var y2 = Math.max(xy1[1], xy2[1], xy3[1], xy4[1])
     return [x1, y1, x2-x1, y2-y1]
-  }
+  },
 
+  makeDraggable : function() {
+    this.addEventListener('dragstart', function(ev) {
+      this.dragStartPosition = {x: this.x, y: this.y};
+      ev.stopPropagation();
+      ev.preventDefault();
+      return false;
+    }, false);
+    this.addEventListener('drag', function(ev) {
+      this.x = this.dragStartPosition.x + this.root.dragX / this.parent.currentMatrix[0];
+      this.y = this.dragStartPosition.y + this.root.dragY / this.parent.currentMatrix[3];
+      ev.stopPropagation();
+      ev.preventDefault();
+      return false;
+    }, false);
+  }
 })
 
 
@@ -3545,6 +3608,8 @@ Canvas = Klass(CanvasNode, {
   mouseX : null,
   mouseY : null,
 
+  elementNodeZIndexCounter : 0,
+
   initialize : function(canvas, config) {
     if (arguments.length > 2) {
       var container = arguments[0]
@@ -3631,6 +3696,8 @@ Canvas = Klass(CanvasNode, {
         nev.canvasTarget = th.dragTarget
         nev.dx = e.clientX - th.prevClientX
         nev.dy = e.clientY - th.prevClientY
+        th.dragX += nev.dx
+        th.dragY += nev.dy
         th.dispatchEvent(nev)
       }
       if (!th.mouseDown) {
@@ -3641,6 +3708,7 @@ Canvas = Klass(CanvasNode, {
             e.shiftKey, e.metaKey, e.button, e.relatedTarget)
           nev.canvasTarget = th.dragTarget
           th.dispatchEvent(nev)
+          th.dragX = th.dragY = 0
           th.dragTarget = false
         }
       } else if (!th.dragTarget && th.target) {
@@ -3650,6 +3718,9 @@ Canvas = Klass(CanvasNode, {
           e.screenX, e.screenY, e.clientX, e.clientY, e.ctrlKey, e.altKey,
           e.shiftKey, e.metaKey, e.button, e.relatedTarget)
         nev.canvasTarget = th.dragTarget
+        th.dragStartX = e.clientX
+        th.dragStartY = e.clientY
+        th.dragX = th.dragY = 0
         th.dispatchEvent(nev)
       }
       th.prevClientX = e.clientX
@@ -3865,6 +3936,7 @@ Canvas = Klass(CanvasNode, {
     @param timeDelta Time since last frame in milliseconds. Optional.
     */
   onFrame : function(time, timeDelta) {
+    this.elementNodeZIndexCounter = 0
     var ctx = this.getContext()
     try {
       var realTime = new Date().getTime()
@@ -4250,7 +4322,7 @@ ElementNode = Klass(CanvasNode, {
     this.content = content
     this.element = E('div', content)
     this.element.style.MozTransformOrigin =
-    this.element.style.webkitTransformOrigin = '0,0'
+    this.element.style.webkitTransformOrigin = '0 0'
     this.element.style.position = 'absolute'
   },
 
@@ -4260,7 +4332,8 @@ ElementNode = Klass(CanvasNode, {
       c.content = this.content.cloneNode(true)
     c.element = E('div', c.content)
     c.element.style.position = 'absolute'
-    c.element.style.webkitTransformOrigin = '0,0'
+    c.element.style.MozTransformOrigin =
+    c.element.style.webkitTransformOrigin = '0 0'
     return c
   },
 
@@ -4295,9 +4368,10 @@ ElementNode = Klass(CanvasNode, {
   draw : function(ctx) {
     if (this.cursor && this.element.style.cursor != this.cursor)
       this.element.style.cursor = this.cursor
-    if (this.element.style.zIndex != this.zIndex)
-      this.element.style.zIndex = this.zIndex
-    var baseTransform = this.currentMatrix.slice(0,4).concat([0,0])
+    if (this.element.style.zIndex != this.root.elementNodeZIndexCounter)
+      this.element.style.zIndex = this.root.elementNodeZIndexCounter
+    this.root.elementNodeZIndexCounter++
+    var baseTransform = this.currentMatrix
     xo = this.xOffset
     yo = this.yOffset
     if (this.fillBoundingBox && this.parent && this.parent.getBoundingBox) {
@@ -4305,7 +4379,7 @@ ElementNode = Klass(CanvasNode, {
       xo += bb[0]
       yo += bb[1]
     }
-    var xy = CanvasSupport.tMatrixMultiplyPoint(baseTransform,
+    var xy = CanvasSupport.tMatrixMultiplyPoint(baseTransform.slice(0,4).concat([0,0]),
       xo, yo)
     var x = this.currentMatrix[4] + xy[0]
     var y = this.currentMatrix[5] + xy[1]
@@ -4318,16 +4392,8 @@ ElementNode = Klass(CanvasNode, {
     if (ctx.fontFamily != null)
       this.element.style.fontFamily = ctx.fontFamily
 
-    var wkt = CanvasSupport.getSupportsCSSTransform()
+    var wkt = CanvasSupport.isCSSTransformSupported()
     if (wkt && !this.noScaling) {
-      var emt
-      var fc = this.element.firstChild
-      if (fc && fc.style)
-        emt = fc.style.marginTop
-      if (emt) {
-        var mt = parseFloat(emt)
-        fc.style.marginTop = ys*mt + (emt.match(/[^\d]+$/) || '')
-      }
       this.element.style.MozTransform =
       this.element.style.webkitTransform = 'matrix('+baseTransform.join(",")+')'
     } else {
@@ -4376,6 +4442,7 @@ ElementNode = Klass(CanvasNode, {
     } else if (fs.length) {
       this.element.style.color = 'rgb(' + fs.slice(0,3).map(Math.floor).join(",") + ')'
     }
+    var dx = 0, dy = 0
     if (bb) {
       this.element.style.width = Math.floor(xs * bb[2]) + 'px'
       this.element.style.height = Math.floor(ys * bb[3]) + 'px'
@@ -4385,22 +4452,34 @@ ElementNode = Klass(CanvasNode, {
       this.element.style.width = ''
       this.element.style.height = ''
       var align = this.align || this.textAnchor
+      var origin = [0,0]
       if (align == 'center' || align == 'middle') {
-        x -= this.element.offsetWidth / 2
+        dx = -this.element.offsetWidth / 2
+        origin[0] = '50%'
       } else if (align == 'right') {
-        x -= this.element.offsetWidth
+        dx = -this.element.offsetWidth
+        origin[0] = '100%'
       }
       var valign = this.valign
       if (valign == 'center' || valign == 'middle') {
-        y -= this.element.offsetHeight / 2
+        dy = -this.element.offsetHeight / 2
+        origin[1] = '50%'
       } else if (valign == 'bottom') {
-        y -= this.element.offsetHeight
+        dy = -this.element.offsetHeight
+        origin[1] = '100%'
       }
+      this.element.style.webkitTransformOrigin =
+      this.element.style.MozTransformOrigin = origin.join(" ")
       this.eWidth = this.element.offsetWidth / xs
       this.eHeight = this.element.offsetHeight / ys
     }
-    this.element.style.left = Math.floor(x) + 'px'
-    this.element.style.top = Math.floor(y) + 'px'
+    if (wkt && !this.noScaling) {
+      this.element.style.left = Math.floor(dx) + 'px'
+      this.element.style.top = Math.floor(dy) + 'px'
+    } else {
+      this.element.style.left = Math.floor(x+dx) + 'px'
+      this.element.style.top = Math.floor(y+dy) + 'px'
+    }
     if (hidden)
       this.element.style.visibility = 'visible'
   }
@@ -5962,6 +6041,13 @@ ImageNode = Klass(Drawable, {
     return [x, y, w, h]
   }
 })
+
+ImageNode.load = function(src) {
+  var img = new Image();
+  img.src = src;
+  var imgn = new ImageNode(img);
+  return imgn;
+}
 
 
 /**
