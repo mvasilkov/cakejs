@@ -1153,9 +1153,10 @@ CanvasSupport = {
 
   getSoundObject : function() {
     var e = null
-    if (this.getSupportsAudioTag()) {
-      e = this.getAudioTagSoundObject()
-    } else if (this.getSupportsSoundManager()) {
+//     if (this.getSupportsAudioTag()) {
+//       e = this.getAudioTagSoundObject()
+//     } else
+    if (this.getSupportsSoundManager()) {
       e = this.getSoundManagerSoundObject()
     }
     return e
