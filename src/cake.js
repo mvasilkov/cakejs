@@ -4475,8 +4475,8 @@ ElementNode = Klass(CanvasNode, {
       this.eHeight = this.element.offsetHeight / ys
     }
     if (wkt && !this.noScaling) {
-      this.element.style.left = Math.floor(x+dx) + 'px'
-      this.element.style.top = Math.floor(y+dy) + 'px'
+      this.element.style.left = Math.floor(dx) + 'px'
+      this.element.style.top = Math.floor(dy) + 'px'
     } else {
       this.element.style.left = Math.floor(x+dx) + 'px'
       this.element.style.top = Math.floor(y+dy) + 'px'
