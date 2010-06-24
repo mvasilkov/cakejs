@@ -47,7 +47,7 @@ OTHER DEALINGS IN THE SOFTWARE.
       var elapsedE = T('')
       var realFpsE = T('')
       var elapsedRealE = T('')
-      debug.append(fpsE, ' fps (', elapsedE, ' ms to draw scene)', E('br'),
+      E.append(debug, fpsE, ' fps (', elapsedE, ' ms to draw scene)', E('br'),
         realFpsE, ' real fps (', elapsedRealE, ' ms between draw calls)',
         E('br'), fc)
       var fctx = fc.getContext('2d')
@@ -1428,15 +1428,15 @@ OTHER DEALINGS IN THE SOFTWARE.
         onFailure: function(xhr, e) {
           loading.content.innerHTML = ''
           if (e) {
-            loading.content.append(E('h3', 'Error', {style:{color:'black'}}),
+            E.append(loading.content, E('h3', 'Error', {style:{color:'black'}}),
               e.toString())
             console.log(e)
           } else if (xhr.responseXML) {
-            loading.content.append(E('h3', 'Error: '+xhr.status,
+            E.append(loading.content, E('h3', 'Error: '+xhr.status,
               {style:{color:'black'}}),
               xhr.responseXML)
           } else {
-            loading.content.append(E('h3', 'Error: '+xhr.status,
+            E.append(loading.content, E('h3', 'Error: '+xhr.status,
               {style:{color:'black'}}),
               xhr.responseText)
           }
@@ -2374,7 +2374,7 @@ OTHER DEALINGS IN THE SOFTWARE.
       c.xElem = T(x)
       c.yElem = T(y)
       var ce = E('div')
-      ce.append(c.xElem, ', ', c.yElem)
+      E.append(ce, c.xElem, ', ', c.yElem)
       ce.style.color = 'white'
       c.append(new ElementNode(ce, {x:10,y:10}))
       c.addEventListener('mousedown', function() {

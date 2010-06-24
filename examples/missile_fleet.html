@@ -1322,6 +1322,9 @@
         CanvasNode.initialize.call(this)
         this.ships = {}
         this.bg = new Rectangle(this.width, this.height)
+        this.bg.centered = true;
+        this.bg.x = this.width / 2;
+        this.bg.y = this.height / 2;
         this.bg.fill = this.bgColor
         this.bg.fillOpacity = this.bgOpacity
         var selectionStart, startX, startY
@@ -1346,7 +1349,7 @@
           zIndex : 999
         })
         this.append(this.selectRect)
-        this.bg.addEventListener('mousedown', function(ev) {
+        this.addEventListener('mousedown', function(ev) {
           ev.preventDefault()
           var point = CanvasSupport.tMatrixMultiplyPoint(
             CanvasSupport.tInvertMatrix(this.currentMatrix),
@@ -1358,7 +1361,7 @@
           th.selectRect.x2 = th.selectRect.cx = point[0]
           th.selectRect.y2 = th.selectRect.cy = point[1]
         }, false)
-        this.bg.addEventListener('drag', function(ev) {
+        this.addEventListener('drag', function(ev) {
           var point = CanvasSupport.tMatrixMultiplyPoint(
             CanvasSupport.tInvertMatrix(this.currentMatrix),
             this.root.mouseX, this.root.mouseY
@@ -1402,10 +1405,21 @@
             ev.relatedTarget.addEventListener('mouseup', this.mouseupHandler, false)
           }
         }, false)
+        this.addFrameListener(function() {
+          if (this.root && this.root.width && this.width) {
+            var w = this.root.width / this.width;
+            var h = this.root.height / this.height;
+            this.scale = Math.min(w,h);
+            this.bg.scale = Math.max(w,h) / this.scale;
+            this.x = (this.root.width - this.width*this.scale) / 2;
+            this.y = (this.root.height - this.height*this.scale) / 2;
+            this.messageLayer.x = this.width / 2;
+            this.messageLayer.scale = this.width / 640;
+          }
+        });
         this.bg.zIndex = -100
         this.messageLayer = new CanvasNode({
-          zIndex : 1000,
-          scale : 1 / this.scale
+          zIndex : 1000
         })
         this.append(this.bg, this.messageLayer)
         this.addFrameListener(function() {
@@ -1441,7 +1455,7 @@
       query : function(header) {
         var div = E('div', {className : 'message'})
         var msg = new ElementNode(div,
-          { x : 320, y : 30, align : 'center' })
+          { x : 0, y : 30, align : 'center' })
         var msgDiv = E('div', header)
         div.appendChild(msgDiv)
         var options = E('div')
@@ -1471,7 +1485,7 @@
         if (!after) after = 0
         this.after(after, function(){
           var msg = new ElementNode(E('h3', message),
-            { x : 320, y : 30, align : 'center' })
+            { x : 0, y : 30, align : 'center' })
           if (!duration) duration = 3500 + msg.element.textContent.length * 10
           msg.opacity = 0
           msg.animateTo('opacity', 1, 500, 'sine')
@@ -1596,7 +1610,6 @@
     Level1 = Klass(Level, {
       width : 640,
       height : 480,
-      scale : 1,
 
       name : "Run like the wind",
       description : "Try not to get blown up.",
@@ -1644,7 +1657,6 @@
     Level3 = Klass(Level, {
       width : 1280,
       height : 960,
-      scale : 0.5,
 
       name : "Formation",
       description : "It may be a bit tricky, luck helps.",
@@ -1671,7 +1683,6 @@
       
       width : 1280,
       height : 960,
-      scale : 0.5,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1700,7 +1711,6 @@
 
       width : 1280,
       height : 960,
-      scale : 0.5,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1725,7 +1735,6 @@
 
       width : 1280,
       height : 960,
-      scale : 0.5,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1748,7 +1757,6 @@
 
       width : 1600,
       height : 1200,
-      scale : 640 / 1600,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1773,7 +1781,6 @@
 
       width : 1600,
       height : 1200,
-      scale : 640 / 1600,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1802,7 +1809,7 @@
       name : "Duels",
       description : "Cheese is awesome as well.",
 
-      width : 1600, height : 1200, scale : 640 / 1600,
+      width : 1600, height : 1200,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1825,7 +1832,7 @@
       name : "Relaaax",
       description : "An intermission.",
 
-      width : 1600, height : 1200, scale : 640 / 1600,
+      width : 1600, height : 1200,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1862,7 +1869,7 @@
       name : "Encounter",
       description : "Even fight.",
 
-      width : 2000, height : 1500, scale : 640 / 2000,
+      width : 2000, height : 1500,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1889,7 +1896,7 @@
       name : "Skirmish",
       description : "Take out the blue ships.",
 
-      width : 1600, height : 1200, scale : 640 / 1600,
+      width : 1600, height : 1200,
       wave : 20,
 
       initialize : function() {
@@ -1940,7 +1947,7 @@
       name : "Random encounter",
       description : "How will you cope?",
 
-      width : 1600, height : 1200, scale : 640 / 1600,
+      width : 1600, height : 1200,
 
       initialize : function() {
         Level.initialize.call(this)
@@ -1962,7 +1969,6 @@
     MenuLevel = Klass(Level, {
       width : 1280,
       height : 960,
-      scale : 0.5,
       playerTeam : null,
       enemyTeam : null,
       
@@ -2164,7 +2170,7 @@
         var elapsedE = T('')
         var realFpsE = T('')
         var elapsedRealE = T('')
-        debug.append(fpsE, ' fps (', elapsedE, ' ms to draw scene)', E('br'),
+        E.append(debug, fpsE, ' fps (', elapsedE, ' ms to draw scene)', E('br'),
           realFpsE, ' real fps (', elapsedRealE, ' ms between frames)',
           E('br'), fc)
         var fctx = fc.getContext('2d')
@@ -2240,7 +2246,7 @@
 
 
     init = function() {
-      var c = E.canvas(640, 480)
+      var c = E.canvas(window.innerWidth, window.innerHeight)
       var d = E('div', { id: 'screen' })
       d.appendChild(c)
       document.body.appendChild(d)
@@ -2314,13 +2320,13 @@
       margin-bottom: 8px;
     }
     #screen {
-      width: 640px;
-      height: 480px;
+      width: 100%;
+      height: 100%;
       position: absolute;
       cursor: default;
       overflow: hidden;
-      left: 40px;
-      top: 40px;
+      left: 0px;
+      top: 0px;
     }
     #debug {
       color: #828292;
@@ -2329,6 +2335,7 @@
       left: 690px;
       max-width: 300px;
       top: 32px;
+      display:none;
     }
     #debug canvas {
       margin-top: 4px;

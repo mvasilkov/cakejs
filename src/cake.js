@@ -164,16 +164,6 @@ Array.prototype.allWith = function() {
   return a
 }
 
-Element.prototype.append = function() {
-  for(var i=0; i<arguments.length; i++) {
-    if (typeof(arguments[i]) == 'string') {
-      this.appendChild(T(arguments[i]))
-    } else {
-      this.appendChild(arguments[i])
-    }
-  }
-}
-
 // some common helper methods
 
 if (!Function.prototype.bind) {
@@ -446,6 +436,15 @@ E = function(name, params, config) {
     }
   }
   return el
+}
+E.append = function(node) {
+  for(var i=1; i<arguments.length; i++) {
+    if (typeof(arguments[i]) == 'string') {
+      node.appendChild(T(arguments[i]))
+    } else {
+      node.appendChild(arguments[i])
+    }
+  }
 }
 // Safari requires each canvas to have a unique id.
 E.lastCanvasId = 0
