@@ -25,7 +25,17 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
 
-
+window.requestAnimFrame = (function(){
+      return  window.requestAnimationFrame       || 
+              window.webkitRequestAnimationFrame || 
+              window.mozRequestAnimationFrame    || 
+              window.oRequestAnimationFrame      || 
+              window.msRequestAnimationFrame     || 
+              function(/* function */ callback, /* DOMElement */ element){
+                window.setTimeout(callback, 1000 / 60);
+              };
+    })();
+ 
 /**
   Delete the first instance of obj from the array.
 
@@ -3885,6 +3895,24 @@ Canvas = Klass(CanvasNode, {
       this.freeMouseEvent(this.mouseEvents.pop())
   },
 
+  createFrameLoop : function() {
+    var self = this;
+    var fl = {
+      running : true,
+      stop : function() {
+        this.running = false;
+      },
+      run : function() {
+        if (fl.running) {
+          self.onFrame();
+          window.requestAnimFrame(fl.run, self.canvas);
+        }
+      }
+    };
+    window.requestAnimFrame(fl.run, this.canvas);
+    return fl;
+  },
+
   /**
     Start frame loop.
 
@@ -3892,22 +3920,22 @@ Canvas = Klass(CanvasNode, {
     #frameDuration milliseconds.
     */
   play : function() {
-    this.stop()
-    this.realTime = new Date().getTime()
-    this.frameLoop = setInterval(this.frameHandler, this.frameDuration)
-    this.isPlaying = true
+    this.stop();
+    this.realTime = new Date().getTime();
+    this.frameLoop = this.createFrameLoop();
+    this.isPlaying = true;
   },
 
   /**
     Stop frame loop.
     */
   stop : function() {
-    this.__blurStop = false
+    this.__blurStop = false;
     if (this.frameLoop) {
-      clearInterval(this.frameLoop)
-      this.frameLoop = false
+      this.frameLoop.stop();
+      this.frameLoop = null;
     }
-    this.isPlaying = false
+    this.isPlaying = false;
   },
 
   dispatchEvent : function(ev) {
