@@ -3903,13 +3903,14 @@ Canvas = Klass(CanvasNode, {
         this.running = false;
       },
       run : function() {
-        if (fl.running) {
+        if (this.running) {
           self.onFrame();
-          window.requestAnimFrame(fl.run, self.canvas);
+          var t = this;
+          window.requestAnimFrame(function(){t.run();}, self.canvas);
         }
       }
     };
-    window.requestAnimFrame(fl.run, this.canvas);
+    window.requestAnimFrame(function(){fl.run();}, this.canvas);
     return fl;
   },
 
