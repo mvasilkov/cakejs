@@ -3444,8 +3444,11 @@ CanvasNode = Klass(Animatable, Transformable, {
   },
 
   mergeBoundingBoxes : function(bb, bb2) {
+    var obx = bb[0], oby = bb[1]
     if (bb[0] > bb2[0]) bb[0] = bb2[0]
     if (bb[1] > bb2[1]) bb[1] = bb2[1]
+    bb[2] = bb[2] + obx - bb[0]
+    bb[3] = bb[3] + oby - bb[1]
     if (bb[2]+bb[0] < bb2[2]+bb2[0]) bb[2] = bb2[2]+bb2[0]-bb[0]
     if (bb[3]+bb[1] < bb2[3]+bb2[1]) bb[3] = bb2[3]+bb2[1]-bb[1]
   },
